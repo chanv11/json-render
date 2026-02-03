@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.13",
+    "@ai-sdk/openai-compatible": "^2.0.26",
     "@json-render/codegen": "workspace:*",
     "@json-render/core": "workspace:*",
     "@json-render/react": "workspace:*",

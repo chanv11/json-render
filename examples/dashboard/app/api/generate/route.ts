@@ -1,12 +1,20 @@
 import { streamText } from "ai";
 import { generateSystemPrompt } from "@json-render/core";
 import { dashboardCatalog } from "@/lib/catalog";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 export const maxDuration = 30;
 
 const SYSTEM_PROMPT = generateSystemPrompt(dashboardCatalog);
 
-const DEFAULT_MODEL = "anthropic/claude-haiku-4.5";
+const openAICompatibleProvider = createOpenAICompatible({
+  name: "private-provider",
+  apiKey: process.env.AI_GATEWAY_API_KEY!,
+  baseURL: process.env.AI_GATEWAY_BASE_URL! ?? "",
+});
+
+console.log(process.env.AI_GATEWAY_API_KEY, process.env.AI_GATEWAY_BASE_URL);
+console.log(process.env.AI_GATEWAY_MODEL);
 
 export async function POST(req: Request) {
   const { prompt, context } = await req.json();
@@ -19,10 +27,9 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: process.env.AI_GATEWAY_MODEL || DEFAULT_MODEL,
+    model: openAICompatibleProvider(process.env.AI_GATEWAY_MODEL!),
     system: SYSTEM_PROMPT,
     prompt: fullPrompt,
-    temperature: 0.7,
   });
 
   return result.toTextStreamResponse();

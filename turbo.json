@@ -1,7 +1,12 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalEnv": ["AI_GATEWAY_MODEL", "KV_REST_API_URL", "KV_REST_API_TOKEN"],
+  "globalEnv": [
+    "AI_GATEWAY_MODEL",
+    "AI_GATEWAY_API_KEY",
+    "KV_REST_API_URL",
+    "KV_REST_API_TOKEN"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
