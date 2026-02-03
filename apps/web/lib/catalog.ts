@@ -2,9 +2,10 @@ import { createCatalog } from "@json-render/core";
 import { z } from "zod";
 
 /**
- * Web playground component catalog
+ * Web playground component catalog (Ant Design 5.x compatible)
  *
  * This defines the components available for AI generation in the playground.
+ * All props align with Ant Design 5.x component APIs.
  */
 export const playgroundCatalog = createCatalog({
   name: "playground",
@@ -14,13 +15,15 @@ export const playgroundCatalog = createCatalog({
       props: z.object({
         title: z.string().optional(),
         description: z.string().optional(),
+        size: z.enum(["default", "small"]).optional(),
+        bordered: z.boolean().optional(),
         maxWidth: z.enum(["sm", "md", "lg", "full"]).optional(),
         centered: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
       hasChildren: true,
       description:
-        "Container card for content sections. Use for forms/content boxes, NOT for page headers.",
+        "Ant Design Card container for content sections. Use for forms/content boxes.",
     },
 
     Stack: {
@@ -31,10 +34,11 @@ export const playgroundCatalog = createCatalog({
         justify: z
           .enum(["start", "center", "end", "between", "around"])
           .optional(),
+        wrap: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
       hasChildren: true,
-      description: "Flex container for layouts",
+      description: "Ant Design Flex container for layouts",
     },
 
     Grid: {
@@ -45,7 +49,6 @@ export const playgroundCatalog = createCatalog({
             z.literal(2),
             z.literal(3),
             z.literal(4),
-            z.literal(5),
             z.literal(6),
           ])
           .optional(),
@@ -53,48 +56,62 @@ export const playgroundCatalog = createCatalog({
         className: z.array(z.string()).optional(),
       }),
       hasChildren: true,
-      description: "Grid layout (1-6 columns)",
+      description: "Ant Design Row/Col grid layout (1-6 columns)",
     },
 
     Divider: {
       props: z.object({
+        type: z.enum(["horizontal", "vertical"]).optional(),
+        dashed: z.boolean().optional(),
+        orientation: z.enum(["left", "center", "right"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Horizontal separator line",
+      description: "Ant Design Divider separator line",
     },
 
     // Form Inputs
     Input: {
       props: z.object({
-        label: z.string(),
+        label: z.string().optional(),
         name: z.string(),
         type: z.enum(["text", "email", "password", "number"]).optional(),
         placeholder: z.string().optional(),
+        disabled: z.boolean().optional(),
+        allowClear: z.boolean().optional(),
+        maxLength: z.number().optional(),
+        size: z.enum(["large", "middle", "small"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Text input field",
+      description: "Ant Design Input text field",
     },
 
     Textarea: {
       props: z.object({
-        label: z.string(),
+        label: z.string().optional(),
         name: z.string(),
         placeholder: z.string().optional(),
         rows: z.number().optional(),
+        maxLength: z.number().optional(),
+        showCount: z.boolean().optional(),
+        disabled: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Multi-line text input",
+      description: "Ant Design TextArea multi-line input",
     },
 
     Select: {
       props: z.object({
-        label: z.string(),
+        label: z.string().optional(),
         name: z.string(),
         options: z.array(z.string()),
         placeholder: z.string().optional(),
+        disabled: z.boolean().optional(),
+        allowClear: z.boolean().optional(),
+        mode: z.enum(["multiple", "tags"]).optional(),
+        size: z.enum(["large", "middle", "small"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Dropdown select input",
+      description: "Ant Design Select dropdown",
     },
 
     Checkbox: {
@@ -102,19 +119,22 @@ export const playgroundCatalog = createCatalog({
         label: z.string(),
         name: z.string(),
         checked: z.boolean().optional(),
+        disabled: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Checkbox input",
+      description: "Ant Design Checkbox input",
     },
 
     Radio: {
       props: z.object({
-        label: z.string(),
+        label: z.string().optional(),
         name: z.string(),
         options: z.array(z.string()),
+        direction: z.enum(["horizontal", "vertical"]).optional(),
+        disabled: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Radio button group",
+      description: "Ant Design Radio button group",
     },
 
     Switch: {
@@ -122,30 +142,41 @@ export const playgroundCatalog = createCatalog({
         label: z.string(),
         name: z.string(),
         checked: z.boolean().optional(),
+        disabled: z.boolean().optional(),
+        size: z.enum(["default", "small"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Toggle switch input",
+      description: "Ant Design Switch toggle",
     },
 
     // Actions
     Button: {
       props: z.object({
         label: z.string(),
-        variant: z.enum(["primary", "secondary", "danger"]).optional(),
+        type: z
+          .enum(["primary", "default", "dashed", "text", "link"])
+          .optional(),
+        danger: z.boolean().optional(),
+        disabled: z.boolean().optional(),
+        loading: z.boolean().optional(),
+        size: z.enum(["large", "middle", "small"]).optional(),
+        block: z.boolean().optional(),
+        icon: z.string().optional(),
         actionText: z.string().optional(),
         className: z.array(z.string()).optional(),
       }),
       description:
-        "Clickable button. actionText is shown in toast on click (defaults to label)",
+        "Ant Design Button. actionText is shown in toast on click (defaults to label). Use type='primary' for main actions, danger=true for destructive actions.",
     },
 
     Link: {
       props: z.object({
         label: z.string(),
         href: z.string(),
+        target: z.enum(["_blank", "_self"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Anchor link",
+      description: "Ant Design Typography Link",
     },
 
     // Typography
@@ -153,60 +184,94 @@ export const playgroundCatalog = createCatalog({
       props: z.object({
         text: z.string(),
         level: z
-          .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+          .union([
+            z.literal(1),
+            z.literal(2),
+            z.literal(3),
+            z.literal(4),
+            z.literal(5),
+          ])
           .optional(),
+        type: z.enum(["secondary", "success", "warning", "danger"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Heading text (h1-h4)",
+      description: "Ant Design Typography.Title heading (h1-h5)",
     },
 
     Text: {
       props: z.object({
         text: z.string(),
-        variant: z.enum(["body", "caption", "muted"]).optional(),
+        type: z.enum(["secondary", "success", "warning", "danger"]).optional(),
+        strong: z.boolean().optional(),
+        italic: z.boolean().optional(),
+        underline: z.boolean().optional(),
+        disabled: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Paragraph text",
+      description: "Ant Design Typography.Text/Paragraph",
     },
 
     // Data Display
     Image: {
       props: z.object({
+        src: z.string().optional(),
         alt: z.string(),
         width: z.number().optional(),
         height: z.number().optional(),
+        preview: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Placeholder image (displays alt text in a styled box)",
+      description:
+        "Ant Design Image (displays alt text as placeholder if no src)",
     },
 
     Avatar: {
       props: z.object({
         src: z.string().optional(),
         name: z.string(),
-        size: z.enum(["sm", "md", "lg"]).optional(),
+        size: z
+          .union([z.enum(["large", "small", "default"]), z.number()])
+          .optional(),
+        shape: z.enum(["circle", "square"]).optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "User avatar with fallback initials",
+      description: "Ant Design Avatar with fallback initials",
     },
 
     Badge: {
       props: z.object({
         text: z.string(),
-        variant: z.enum(["default", "success", "warning", "danger"]).optional(),
+        color: z
+          .enum(["success", "processing", "error", "warning", "default"])
+          .optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Status badge",
+      description: "Ant Design Tag (used as status badge)",
     },
 
     Alert: {
       props: z.object({
         title: z.string(),
         message: z.string().optional(),
-        type: z.enum(["info", "success", "warning", "error"]).optional(),
+        type: z.enum(["success", "info", "warning", "error"]).optional(),
+        showIcon: z.boolean().optional(),
+        closable: z.boolean().optional(),
+        banner: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Alert banner",
+      description: "Ant Design Alert banner",
+    },
+
+    Message: {
+      props: z.object({
+        content: z.string(),
+        type: z
+          .enum(["success", "info", "warning", "error", "loading"])
+          .optional(),
+        duration: z.number().optional(),
+      }),
+      description:
+        "Ant Design Message toast notification. Triggers a toast on mount, renders nothing visible.",
     },
 
     Progress: {
@@ -214,9 +279,12 @@ export const playgroundCatalog = createCatalog({
         value: z.number(),
         max: z.number().optional(),
         label: z.string().optional(),
+        type: z.enum(["line", "circle", "dashboard"]).optional(),
+        status: z.enum(["success", "exception", "normal", "active"]).optional(),
+        showInfo: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Progress bar (value 0-100)",
+      description: "Ant Design Progress bar (value 0-100)",
     },
 
     Rating: {
@@ -224,12 +292,14 @@ export const playgroundCatalog = createCatalog({
         value: z.number(),
         max: z.number().optional(),
         label: z.string().optional(),
+        allowHalf: z.boolean().optional(),
+        disabled: z.boolean().optional(),
         className: z.array(z.string()).optional(),
       }),
-      description: "Star rating display",
+      description: "Ant Design Rate star rating",
     },
 
-    // Charts
+    // Charts (custom implementation, same API)
     BarGraph: {
       props: z.object({
         title: z.string().optional(),
@@ -256,6 +326,56 @@ export const playgroundCatalog = createCatalog({
         className: z.array(z.string()).optional(),
       }),
       description: "Line chart with points",
+    },
+
+    // Data Table
+    Table: {
+      props: z.object({
+        columns: z.array(
+          z.object({
+            key: z.string(),
+            title: z.string(),
+            dataIndex: z.string().optional(),
+            width: z.union([z.number(), z.string()]).optional(),
+            align: z.enum(["left", "center", "right"]).optional(),
+            fixed: z.enum(["left", "right"]).optional(),
+            ellipsis: z.boolean().optional(),
+            sortable: z.boolean().optional(),
+            // Render options (use one of these)
+            render: z
+              .array(
+                z.object({
+                  type: z.string(),
+                  props: z.record(z.string(), z.unknown()),
+                }),
+              )
+              .optional(), // Fixed components for action columns
+            renderType: z
+              .enum(["tag", "tags", "link", "badge", "avatar", "image"])
+              .optional(), // Predefined render type
+            renderProps: z.record(z.string(), z.unknown()).optional(), // Props for renderType, supports {{value}} and {{record.field}} templates
+          }),
+        ),
+        dataSource: z.array(z.record(z.string(), z.unknown())).optional(),
+        rowKey: z.string().optional(),
+        size: z.enum(["large", "middle", "small"]).optional(),
+        bordered: z.boolean().optional(),
+        loading: z.boolean().optional(),
+        showHeader: z.boolean().optional(),
+        pagination: z
+          .union([
+            z.boolean(),
+            z.object({
+              pageSize: z.number().optional(),
+              current: z.number().optional(),
+              total: z.number().optional(),
+            }),
+          ])
+          .optional(),
+        className: z.array(z.string()).optional(),
+      }),
+      description:
+        "Ant Design Table. Use renderType for predefined renders (tag/tags/link/badge/avatar/image), or render array for action buttons. Supports {{value}} and {{record.field}} templates in props.",
     },
   },
   validation: "strict",

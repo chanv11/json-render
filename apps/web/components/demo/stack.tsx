@@ -1,49 +1,55 @@
 "use client";
 
+import { Flex } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Stack({ element, children }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
   const isHorizontal = props.direction === "horizontal";
 
-  const gapClass =
+  const gap =
     props.gap === "lg"
-      ? "gap-3"
+      ? 24
       : props.gap === "md"
-        ? "gap-2"
+        ? 16
         : props.gap === "sm"
-          ? "gap-1"
+          ? 8
           : props.gap === "none"
-            ? "gap-0"
-            : "gap-2";
+            ? 0
+            : 16;
 
-  const alignClass =
+  const align =
     props.align === "center"
-      ? "items-center"
+      ? "center"
       : props.align === "end"
-        ? "items-end"
+        ? "flex-end"
         : props.align === "stretch"
-          ? "items-stretch"
-          : "items-start";
+          ? "stretch"
+          : "flex-start";
 
-  const justifyClass =
+  const justify =
     props.justify === "center"
-      ? "justify-center"
+      ? "center"
       : props.justify === "end"
-        ? "justify-end"
+        ? "flex-end"
         : props.justify === "between"
-          ? "justify-between"
+          ? "space-between"
           : props.justify === "around"
-            ? "justify-around"
-            : "";
+            ? "space-around"
+            : "flex-start";
 
   return (
-    <div
-      className={`flex ${isHorizontal ? "flex-row flex-wrap" : "flex-col"} ${gapClass} ${alignClass} ${justifyClass} ${baseClass} ${customClass}`}
+    <Flex
+      vertical={!isHorizontal}
+      gap={gap}
+      align={align}
+      justify={justify}
+      wrap={isHorizontal ? "wrap" : undefined}
+      className={customClass}
     >
       {children}
-    </div>
+    </Flex>
   );
 }

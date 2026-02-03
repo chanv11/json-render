@@ -1,15 +1,16 @@
 "use client";
 
+import { Typography } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
+
+const { Text } = Typography;
 
 export function Fallback({ element }: ComponentRenderProps) {
   const customClass = getCustomClass(element.props);
   return (
-    <div
-      className={`text-[10px] text-muted-foreground ${baseClass} ${customClass}`}
-    >
+    <Text type="secondary" className={customClass} style={{ fontSize: 10 }}>
       [{element.type}]
-    </div>
+    </Text>
   );
 }

@@ -1,22 +1,40 @@
 "use client";
 
+import { Typography } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
+
+const { Paragraph, Text: AntText } = Typography;
 
 export function Text({ element }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
   const textVariant = props.variant as string;
-  const textClass =
-    textVariant === "caption"
-      ? "text-[10px]"
-      : textVariant === "muted"
-        ? "text-xs text-muted-foreground"
-        : "text-xs";
+  const content = (props.text ?? props.content) as string;
+
+  if (textVariant === "caption") {
+    return (
+      <AntText
+        type="secondary"
+        className={customClass}
+        style={{ fontSize: 12 }}
+      >
+        {content}
+      </AntText>
+    );
+  }
+
+  if (textVariant === "muted") {
+    return (
+      <AntText type="secondary" className={customClass}>
+        {content}
+      </AntText>
+    );
+  }
 
   return (
-    <p className={`${textClass} text-left ${baseClass} ${customClass}`}>
-      {(props.text ?? props.content) as string}
-    </p>
+    <Paragraph className={customClass} style={{ marginBottom: 0 }}>
+      {content}
+    </Paragraph>
   );
 }

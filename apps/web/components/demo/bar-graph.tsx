@@ -1,7 +1,10 @@
 "use client";
 
+import { Typography } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
+
+const { Text } = Typography;
 
 interface DataPoint {
   label: string;
@@ -16,26 +19,58 @@ export function BarGraph({ element }: ComponentRenderProps) {
   const maxValue = Math.max(...data.map((d) => d.value), 1);
 
   return (
-    <div className={`${baseClass} ${customClass}`}>
-      {title ? (
-        <div className="text-xs font-medium mb-2 text-left">{title}</div>
-      ) : null}
-      <div className="flex gap-1">
+    <div className={customClass}>
+      {title && (
+        <Text strong style={{ display: "block", marginBottom: 8 }}>
+          {title}
+        </Text>
+      )}
+      <div style={{ display: "flex", gap: 4 }}>
         {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="text-[8px] text-muted-foreground">{d.value}</div>
-            <div className="w-full h-20 flex items-end">
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <Text type="secondary" style={{ fontSize: 10 }}>
+              {d.value}
+            </Text>
+            <div
+              style={{
+                width: "100%",
+                height: 80,
+                display: "flex",
+                alignItems: "flex-end",
+              }}
+            >
               <div
-                className="w-full bg-foreground/80 rounded-t transition-all"
                 style={{
+                  width: "100%",
+                  backgroundColor: "#1677ff",
+                  borderRadius: "4px 4px 0 0",
                   height: `${(d.value / maxValue) * 100}%`,
                   minHeight: 2,
                 }}
               />
             </div>
-            <div className="text-[8px] text-muted-foreground truncate w-full text-center">
+            <Text
+              type="secondary"
+              style={{
+                fontSize: 10,
+                textAlign: "center",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                width: "100%",
+              }}
+            >
               {d.label}
-            </div>
+            </Text>
           </div>
         ))}
       </div>

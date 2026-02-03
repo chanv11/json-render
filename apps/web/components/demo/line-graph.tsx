@@ -1,7 +1,10 @@
 "use client";
 
+import { Typography } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
+
+const { Text } = Typography;
 
 interface DataPoint {
   label: string;
@@ -40,20 +43,24 @@ export function LineGraph({ element }: ComponentRenderProps) {
       : "";
 
   return (
-    <div className={`${baseClass} ${customClass}`}>
-      {title ? (
-        <div className="text-xs font-medium mb-2 text-left">{title}</div>
-      ) : null}
-      <div className="relative h-24">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+    <div className={customClass}>
+      {title && (
+        <Text strong style={{ display: "block", marginBottom: 8 }}>
+          {title}
+        </Text>
+      )}
+      <div style={{ position: "relative", height: 96 }}>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ width: "100%", height: "100%" }}
+        >
           {/* Grid lines */}
           <line
             x1={padding.left}
             y1={padding.top + chartHeight / 2}
             x2={width - padding.right}
             y2={padding.top + chartHeight / 2}
-            stroke="currentColor"
-            strokeOpacity="0.1"
+            stroke="#d9d9d9"
             strokeWidth="1"
           />
           <line
@@ -61,8 +68,7 @@ export function LineGraph({ element }: ComponentRenderProps) {
             y1={padding.top}
             x2={width - padding.right}
             y2={padding.top}
-            stroke="currentColor"
-            strokeOpacity="0.1"
+            stroke="#d9d9d9"
             strokeWidth="1"
           />
           <line
@@ -70,8 +76,7 @@ export function LineGraph({ element }: ComponentRenderProps) {
             y1={height - padding.bottom}
             x2={width - padding.right}
             y2={height - padding.bottom}
-            stroke="currentColor"
-            strokeOpacity="0.1"
+            stroke="#d9d9d9"
             strokeWidth="1"
           />
           {/* Line */}
@@ -79,35 +84,38 @@ export function LineGraph({ element }: ComponentRenderProps) {
             <path
               d={pathD}
               fill="none"
-              stroke="currentColor"
+              stroke="#1677ff"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="text-foreground/80"
             />
           )}
           {/* Points */}
           {points.map((p, i) => (
-            <circle
-              key={i}
-              cx={p.x}
-              cy={p.y}
-              r="4"
-              className="fill-foreground"
-            />
+            <circle key={i} cx={p.x} cy={p.y} r="4" fill="#1677ff" />
           ))}
         </svg>
       </div>
       {data.length > 0 && (
-        <div className="flex justify-between mt-1">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginTop: 4,
+          }}
+        >
           {data.map((d, i) => (
-            <div
+            <Text
               key={i}
-              className="text-[8px] text-muted-foreground text-center"
-              style={{ width: `${100 / data.length}%` }}
+              type="secondary"
+              style={{
+                fontSize: 10,
+                textAlign: "center",
+                width: `${100 / data.length}%`,
+              }}
             >
               {d.label}
-            </div>
+            </Text>
           ))}
         </div>
       )}

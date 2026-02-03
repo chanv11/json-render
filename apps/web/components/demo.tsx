@@ -18,6 +18,7 @@ import {
   demoRegistry,
   fallbackComponent,
   useInteractiveState,
+  AntdProvider,
 } from "./demo/index";
 
 const SIMULATION_PROMPT = "Create a contact form with name, email, and message";
@@ -1197,28 +1198,30 @@ Open [http://localhost:3000](http://localhost:3000) to view.
               <div className="overflow-auto">
                 {currentTree && currentTree.root ? (
                   <div className="animate-in fade-in duration-200 w-full min-h-full flex items-center justify-center p-3 py-4">
-                    <JSONUIProvider
-                      registry={
-                        demoRegistry as Parameters<
-                          typeof JSONUIProvider
-                        >[0]["registry"]
-                      }
-                    >
-                      <Renderer
-                        tree={currentTree}
+                    <AntdProvider>
+                      <JSONUIProvider
                         registry={
                           demoRegistry as Parameters<
-                            typeof Renderer
+                            typeof JSONUIProvider
                           >[0]["registry"]
                         }
-                        loading={isStreaming || isStreamingSimulation}
-                        fallback={
-                          fallbackComponent as Parameters<
-                            typeof Renderer
-                          >[0]["fallback"]
-                        }
-                      />
-                    </JSONUIProvider>
+                      >
+                        <Renderer
+                          tree={currentTree}
+                          registry={
+                            demoRegistry as Parameters<
+                              typeof Renderer
+                            >[0]["registry"]
+                          }
+                          loading={isStreaming || isStreamingSimulation}
+                          fallback={
+                            fallbackComponent as Parameters<
+                              typeof Renderer
+                            >[0]["fallback"]
+                          }
+                        />
+                      </JSONUIProvider>
+                    </AntdProvider>
                   </div>
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground/50 text-sm">
@@ -1269,26 +1272,30 @@ Open [http://localhost:3000](http://localhost:3000) to view.
           <div className="flex-1 overflow-auto p-6">
             {currentTree && currentTree.root ? (
               <div className="w-full min-h-full flex items-center justify-center">
-                <JSONUIProvider
-                  registry={
-                    demoRegistry as Parameters<
-                      typeof JSONUIProvider
-                    >[0]["registry"]
-                  }
-                >
-                  <Renderer
-                    tree={currentTree}
+                <AntdProvider>
+                  <JSONUIProvider
                     registry={
-                      demoRegistry as Parameters<typeof Renderer>[0]["registry"]
+                      demoRegistry as Parameters<
+                        typeof JSONUIProvider
+                      >[0]["registry"]
                     }
-                    loading={isStreaming || isStreamingSimulation}
-                    fallback={
-                      fallbackComponent as Parameters<
-                        typeof Renderer
-                      >[0]["fallback"]
-                    }
-                  />
-                </JSONUIProvider>
+                  >
+                    <Renderer
+                      tree={currentTree}
+                      registry={
+                        demoRegistry as Parameters<
+                          typeof Renderer
+                        >[0]["registry"]
+                      }
+                      loading={isStreaming || isStreamingSimulation}
+                      fallback={
+                        fallbackComponent as Parameters<
+                          typeof Renderer
+                        >[0]["fallback"]
+                      }
+                    />
+                  </JSONUIProvider>
+                </AntdProvider>
               </div>
             ) : (
               <div className="h-full flex items-center justify-center text-muted-foreground/50 text-sm">

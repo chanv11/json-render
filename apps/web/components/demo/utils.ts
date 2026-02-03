@@ -2,18 +2,14 @@
 
 import { useState } from "react";
 
-// Shared animation class
-export const baseClass =
-  "animate-in fade-in slide-in-from-bottom-1 duration-200";
-
-// Helper to get custom classes
+// Helper to get custom classes (for backward compatibility)
 export function getCustomClass(props: Record<string, unknown>): string {
   return Array.isArray(props.className)
     ? (props.className as string[]).join(" ")
     : "";
 }
 
-// State for interactive components
+// State for interactive components (Select dropdown state)
 let openSelect: string | null = null;
 let setOpenSelect: (v: string | null) => void = () => {};
 let selectValues: Record<string, string> = {};

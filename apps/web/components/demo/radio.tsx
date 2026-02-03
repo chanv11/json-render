@@ -1,38 +1,39 @@
 "use client";
 
 import { useState } from "react";
+import { Radio as AntRadio, Form, Space } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Radio({ element }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
   const options = (props.options as string[]) || [];
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(options[0] || "");
 
-  return (
-    <div className={`space-y-1 ${baseClass} ${customClass}`}>
-      {props.label ? (
-        <div className="text-[10px] text-muted-foreground mb-1 text-left">
-          {props.label as string}
-        </div>
-      ) : null}
-      {options.map((opt, i) => (
-        <label
-          key={i}
-          className="flex items-center gap-2 text-xs cursor-pointer"
-          onClick={() => setSelected(i)}
-        >
-          <div
-            className={`w-3.5 h-3.5 border border-border rounded-full flex items-center justify-center transition-colors ${selected === i ? "border-foreground" : ""}`}
-          >
-            {selected === i && (
-              <div className="w-2 h-2 rounded-full bg-foreground" />
-            )}
-          </div>
-          {opt}
-        </label>
-      ))}
-    </div>
+  const radioGroup = (
+    <AntRadio.Group
+      value={selected}
+      onChange={(e) => setSelected(e.target.value)}
+      className={customClass}
+    >
+      <Space direction="vertical">
+        {options.map((opt, i) => (
+          <AntRadio key={i} value={opt}>
+            {opt}
+          </AntRadio>
+        ))}
+      </Space>
+    </AntRadio.Group>
   );
+
+  if (props.label) {
+    return (
+      <Form.Item label={props.label as string} style={{ marginBottom: 8 }}>
+        {radioGroup}
+      </Form.Item>
+    );
+  }
+
+  return radioGroup;
 }

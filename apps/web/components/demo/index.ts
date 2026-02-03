@@ -2,6 +2,7 @@
 
 export type { ComponentRenderProps, ComponentRegistry } from "./types";
 export { useInteractiveState } from "./utils";
+export { AntdProvider } from "./antd-provider";
 
 export { Alert } from "./alert";
 export { Avatar } from "./avatar";
@@ -19,12 +20,14 @@ export { Image } from "./image";
 export { Input } from "./input";
 export { LineGraph } from "./line-graph";
 export { Link } from "./link";
+export { Message } from "./message";
 export { Progress } from "./progress";
 export { Radio } from "./radio";
 export { Rating } from "./rating";
 export { Select } from "./select";
 export { Stack } from "./stack";
 export { Switch } from "./switch";
+export { Table } from "./table";
 export { Text } from "./text";
 export { Textarea } from "./textarea";
 
@@ -45,12 +48,14 @@ import { Image } from "./image";
 import { Input } from "./input";
 import { LineGraph } from "./line-graph";
 import { Link } from "./link";
+import { Message } from "./message";
 import { Progress } from "./progress";
 import { Radio } from "./radio";
 import { Rating } from "./rating";
 import { Select } from "./select";
 import { Stack } from "./stack";
 import { Switch } from "./switch";
+import { Table } from "./table";
 import { Text } from "./text";
 import { Textarea } from "./textarea";
 
@@ -70,12 +75,14 @@ export const demoRegistry: ComponentRegistry = {
   Input,
   LineGraph,
   Link,
+  Message,
   Progress,
   Radio,
   Rating,
   Select,
   Stack,
   Switch,
+  Table,
   Text,
   Textarea,
 };

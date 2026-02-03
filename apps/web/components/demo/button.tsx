@@ -1,7 +1,8 @@
 "use client";
 
+import { Button as AntButton } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Button({ element }: ComponentRenderProps) {
   const { props } = element;
@@ -9,24 +10,29 @@ export function Button({ element }: ComponentRenderProps) {
   const variant = props.variant as string;
   const label = props.label as string;
   const actionText = (props.actionText as string) || label;
-  const btnClass =
-    variant === "danger"
-      ? "bg-red-500 text-white"
-      : variant === "secondary"
-        ? "bg-card border border-border text-foreground"
-        : "bg-foreground text-background";
+
+  const type =
+    variant === "primary"
+      ? "primary"
+      : variant === "danger"
+        ? "primary"
+        : "default";
+
+  const danger = variant === "danger";
 
   return (
-    <button
-      type="button"
+    <AntButton
+      type={type}
+      danger={danger}
+      size="small"
+      className={customClass}
       onClick={() =>
         (
           window as unknown as { __demoAction?: (text: string) => void }
         ).__demoAction?.(actionText)
       }
-      className={`self-start px-3 py-1.5 rounded text-xs font-medium hover:opacity-90 transition-opacity ${btnClass} ${baseClass} ${customClass}`}
     >
       {label}
-    </button>
+    </AntButton>
   );
 }

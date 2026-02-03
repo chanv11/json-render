@@ -1,26 +1,26 @@
 "use client";
 
+import { Tag } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Badge({ element }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
   const badgeVariant = props.variant as string;
-  const badgeClass =
+
+  const color =
     badgeVariant === "success"
-      ? "bg-green-100 text-green-800"
+      ? "success"
       : badgeVariant === "warning"
-        ? "bg-yellow-100 text-yellow-800"
+        ? "warning"
         : badgeVariant === "danger"
-          ? "bg-red-100 text-red-800"
-          : "bg-muted text-foreground";
+          ? "error"
+          : "default";
 
   return (
-    <span
-      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${badgeClass} ${baseClass} ${customClass}`}
-    >
+    <Tag color={color} className={customClass}>
       {(props.text ?? props.label) as string}
-    </span>
+    </Tag>
   );
 }

@@ -1,31 +1,29 @@
 "use client";
 
+import { Row, Col } from "antd";
+import React from "react";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Grid({ element, children }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
-  const hasCustomCols = customClass.includes("grid-cols-");
-  const cols = hasCustomCols
-    ? ""
-    : props.columns === 6
-      ? "grid-cols-6"
-      : props.columns === 5
-        ? "grid-cols-5"
-        : props.columns === 4
-          ? "grid-cols-4"
-          : props.columns === 3
-            ? "grid-cols-3"
-            : props.columns === 2
-              ? "grid-cols-2"
-              : "grid-cols-1";
-  const gridGap =
-    props.gap === "lg" ? "gap-3" : props.gap === "sm" ? "gap-1" : "gap-2";
+  const columns = (props.columns as number) || 1;
+
+  const gutter = props.gap === "lg" ? 24 : props.gap === "sm" ? 8 : 16;
+
+  const span = Math.floor(24 / columns);
+
+  // Wrap each child in a Col
+  const childArray = React.Children.toArray(children);
 
   return (
-    <div className={`grid ${cols} ${gridGap} ${baseClass} ${customClass}`}>
-      {children}
-    </div>
+    <Row gutter={[gutter, gutter]} className={customClass}>
+      {childArray.map((child, index) => (
+        <Col key={index} span={span}>
+          {child}
+        </Col>
+      ))}
+    </Row>
   );
 }

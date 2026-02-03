@@ -1,24 +1,19 @@
 "use client";
 
+import { Typography } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
+
+const { Title } = Typography;
 
 export function Heading({ element }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
-  const level = (props.level as number) || 2;
-  const headingClass =
-    level === 1
-      ? "text-lg font-bold"
-      : level === 3
-        ? "text-xs font-semibold"
-        : level === 4
-          ? "text-[10px] font-semibold"
-          : "text-sm font-semibold";
+  const level = ((props.level as number) || 2) as 1 | 2 | 3 | 4 | 5;
 
   return (
-    <div className={`${headingClass} text-left ${baseClass} ${customClass}`}>
+    <Title level={level} className={customClass} style={{ margin: 0 }}>
       {props.text as string}
-    </div>
+    </Title>
   );
 }

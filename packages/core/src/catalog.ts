@@ -297,94 +297,175 @@ export type InferCatalogComponentProps<
 };
 
 /**
- * Internal Zod definition type for introspection
+ * Internal Zod v4 definition type for introspection
+ * Zod v4 uses `type` instead of `typeName`, and `shape` is a direct object
  */
-interface ZodDefInternal {
-  typeName?: string;
+interface ZodDefInternalV4 {
+  type?: string;
   value?: unknown;
-  values?: unknown;
-  type?: z.ZodTypeAny;
-  shape?: () => Record<string, z.ZodTypeAny>;
+  values?: Set<unknown> | unknown[] | Record<string, unknown>;
+  entries?: Record<string, string>; // Zod v4 enum entries
   innerType?: z.ZodTypeAny;
+  shape?: Record<string, z.ZodTypeAny>;
   options?: z.ZodTypeAny[];
+  element?: z.ZodTypeAny;
+  valueType?: z.ZodTypeAny;
+}
+
+/**
+ * Get the type name from a Zod schema (compatible with v3 and v4)
+ */
+function getZodTypeName(schema: z.ZodTypeAny): string {
+  // Zod v4: schema has a `type` property directly
+  if ("type" in schema && typeof schema.type === "string") {
+    return schema.type;
+  }
+  // Zod v3 fallback: check _def.typeName
+  const def = schema._def as unknown as { typeName?: string };
+  return def.typeName ?? "";
 }
 
 /**
  * Format a Zod type into a human-readable string for prompts
  */
 function formatZodType(schema: z.ZodTypeAny, isOptional = false): string {
-  const def = schema._def as unknown as ZodDefInternal;
-  const typeName = def.typeName ?? "";
+  const typeName = getZodTypeName(schema);
+  const def = schema._def as unknown as ZodDefInternalV4;
 
   let result: string;
 
   switch (typeName) {
-    case "ZodString":
+    case "string":
       result = "string";
       break;
-    case "ZodNumber":
+    case "number":
       result = "number";
       break;
-    case "ZodBoolean":
+    case "boolean":
       result = "boolean";
       break;
-    case "ZodLiteral":
-      result = JSON.stringify(def.value);
+    case "literal": {
+      // Zod v4: schema.value for single literal, or def.values array
+      if (
+        "value" in schema &&
+        (schema as unknown as { value: unknown }).value !== undefined
+      ) {
+        result = JSON.stringify(
+          (schema as unknown as { value: unknown }).value,
+        );
+      } else if (Array.isArray(def.values)) {
+        result = def.values.map((v) => JSON.stringify(v)).join("|");
+      } else if (def.values instanceof Set) {
+        const vals = Array.from(def.values);
+        result = vals.map((v) => JSON.stringify(v)).join("|");
+      } else if (def.value !== undefined) {
+        result = JSON.stringify(def.value);
+      } else {
+        result = "literal";
+      }
       break;
-    case "ZodEnum":
-      result = (def.values as string[]).map((v) => `"${v}"`).join("|");
+    }
+    case "enum": {
+      // Zod v4: entries is { key: value } object, or schema.options is array
+      if (def.entries && typeof def.entries === "object") {
+        result = Object.values(def.entries)
+          .map((v) => `"${v}"`)
+          .join("|");
+      } else if (
+        "options" in schema &&
+        Array.isArray((schema as unknown as { options: string[] }).options)
+      ) {
+        result = (schema as unknown as { options: string[] }).options
+          .map((v) => `"${v}"`)
+          .join("|");
+      } else if (def.values instanceof Set) {
+        result = Array.from(def.values)
+          .map((v) => `"${v}"`)
+          .join("|");
+      } else if (Array.isArray(def.values)) {
+        result = def.values.map((v) => `"${v}"`).join("|");
+      } else {
+        result = "enum";
+      }
       break;
-    case "ZodNativeEnum":
-      result = Object.values(def.values as Record<string, string>)
-        .map((v) => `"${v}"`)
-        .join("|");
+    }
+    case "nativeEnum": {
+      const enumValues = def.values;
+      if (
+        enumValues &&
+        typeof enumValues === "object" &&
+        !(enumValues instanceof Set) &&
+        !Array.isArray(enumValues)
+      ) {
+        result = Object.values(enumValues)
+          .filter((v): v is string => typeof v === "string")
+          .map((v) => `"${v}"`)
+          .join("|");
+      } else {
+        result = "enum";
+      }
       break;
-    case "ZodArray":
-      result = def.type
-        ? `Array<${formatZodType(def.type)}>`
+    }
+    case "array": {
+      // Zod v4: element type is in def.element
+      const elementType = def.element;
+      result = elementType
+        ? `Array<${formatZodType(elementType)}>`
         : "Array<unknown>";
       break;
-    case "ZodObject": {
-      if (!def.shape) {
+    }
+    case "object": {
+      // Zod v4: shape is a direct object, not a function
+      const shape =
+        def.shape ??
+        ("shape" in schema
+          ? (schema as unknown as { shape: Record<string, z.ZodTypeAny> }).shape
+          : null);
+      if (!shape || typeof shape !== "object") {
         result = "object";
         break;
       }
-      const shape = def.shape();
       const props = Object.entries(shape)
         .map(([key, value]) => {
-          const innerDef = value._def as unknown as ZodDefInternal;
+          const innerTypeName = getZodTypeName(value);
           const innerOptional =
-            innerDef.typeName === "ZodOptional" ||
-            innerDef.typeName === "ZodNullable";
+            innerTypeName === "optional" || innerTypeName === "nullable";
           return `${key}${innerOptional ? "?" : ""}: ${formatZodType(value)}`;
         })
         .join(", ");
       result = `{ ${props} }`;
       break;
     }
-    case "ZodOptional":
+    case "optional":
       return def.innerType ? formatZodType(def.innerType, true) : "unknown?";
-    case "ZodNullable":
+    case "nullable":
       return def.innerType ? formatZodType(def.innerType, true) : "unknown?";
-    case "ZodDefault":
+    case "default":
       return def.innerType
         ? formatZodType(def.innerType, isOptional)
         : "unknown";
-    case "ZodUnion":
+    case "union":
       result = def.options
         ? def.options.map((opt) => formatZodType(opt)).join("|")
         : "unknown";
       break;
-    case "ZodNull":
+    case "record": {
+      const valueType = def.valueType;
+      result = valueType
+        ? `Record<string, ${formatZodType(valueType)}>`
+        : "Record<string, unknown>";
+      break;
+    }
+    case "null":
       result = "null";
       break;
-    case "ZodUndefined":
+    case "undefined":
       result = "undefined";
       break;
-    case "ZodAny":
+    case "any":
       result = "any";
       break;
-    case "ZodUnknown":
+    case "unknown":
       result = "unknown";
       break;
     default:
@@ -400,19 +481,27 @@ function formatZodType(schema: z.ZodTypeAny, isOptional = false): string {
 function extractPropsFromSchema(
   schema: z.ZodTypeAny,
 ): Array<{ name: string; type: string; optional: boolean }> {
-  const def = schema._def as unknown as ZodDefInternal;
-  const typeName = def.typeName ?? "";
+  const typeName = getZodTypeName(schema);
+  const def = schema._def as unknown as ZodDefInternalV4;
 
-  if (typeName !== "ZodObject" || !def.shape) {
+  if (typeName !== "object") {
     return [];
   }
 
-  const shape = def.shape();
+  // Zod v4: shape is a direct object property
+  const shape =
+    def.shape ??
+    ("shape" in schema
+      ? (schema as unknown as { shape: Record<string, z.ZodTypeAny> }).shape
+      : null);
+  if (!shape || typeof shape !== "object") {
+    return [];
+  }
+
   return Object.entries(shape).map(([name, value]) => {
-    const innerDef = value._def as unknown as ZodDefInternal;
+    const innerTypeName = getZodTypeName(value);
     const optional =
-      innerDef.typeName === "ZodOptional" ||
-      innerDef.typeName === "ZodNullable";
+      innerTypeName === "optional" || innerTypeName === "nullable";
     return {
       name,
       type: formatZodType(value),

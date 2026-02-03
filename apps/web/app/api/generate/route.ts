@@ -1,7 +1,7 @@
 import { streamText } from "ai";
 import { headers } from "next/headers";
-import { generateSystemPrompt } from "@json-render/core";
 import { minuteRateLimit, dailyRateLimit } from "@/lib/rate-limit";
+import { generateSystemPrompt } from "@json-render/core";
 import { playgroundCatalog } from "@/lib/catalog";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
@@ -14,7 +14,7 @@ const SYSTEM_PROMPT = generateSystemPrompt(playgroundCatalog, {
     "NEVER use page background colors (bg-gray-50) - container has its own background",
   ],
 });
-
+console.log("SYSTEM_PROMPT", SYSTEM_PROMPT);
 const openAICompatibleProvider = createOpenAICompatible({
   name: "private-provider",
   apiKey: process.env.AI_GATEWAY_API_KEY!,
@@ -54,6 +54,7 @@ DO NOT output patches for elements that don't need to change. Only output what's
     model: openAICompatibleProvider(process.env.AI_GATEWAY_MODEL!),
     system: SYSTEM_PROMPT,
     prompt: userPrompt,
+    temperature: 0.7,
   });
 
   return result.toTextStreamResponse();

@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Renderer, useUIStream, JSONUIProvider } from "@json-render/react";
+import {
+  Renderer,
+  useUIStream,
+  JSONUIProvider,
+  VisibilityProvider,
+} from "@json-render/react";
 import type { UITree } from "@json-render/core";
 import { collectUsedComponents, serializeProps } from "@json-render/codegen";
 import { toast } from "sonner";
@@ -490,18 +495,20 @@ ${jsx}
                   >[0]["registry"]
                 }
               >
-                <Renderer
-                  tree={currentTree!}
-                  registry={
-                    demoRegistry as Parameters<typeof Renderer>[0]["registry"]
-                  }
-                  loading={isStreaming}
-                  fallback={
-                    fallbackComponent as Parameters<
-                      typeof Renderer
-                    >[0]["fallback"]
-                  }
-                />
+                <VisibilityProvider>
+                  <Renderer
+                    tree={currentTree!}
+                    registry={
+                      demoRegistry as Parameters<typeof Renderer>[0]["registry"]
+                    }
+                    loading={isStreaming}
+                    fallback={
+                      fallbackComponent as Parameters<
+                        typeof Renderer
+                      >[0]["fallback"]
+                    }
+                  />
+                </VisibilityProvider>
               </JSONUIProvider>
             </div>
           ) : (

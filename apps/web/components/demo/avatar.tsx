@@ -1,7 +1,8 @@
 "use client";
 
+import { Avatar as AntAvatar } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Avatar({ element }: ComponentRenderProps) {
   const { props } = element;
@@ -13,18 +14,16 @@ export function Avatar({ element }: ComponentRenderProps) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const avatarSize =
-    props.size === "lg"
-      ? "w-10 h-10 text-sm"
-      : props.size === "sm"
-        ? "w-6 h-6 text-[8px]"
-        : "w-8 h-8 text-[10px]";
+
+  const size = props.size === "lg" ? 40 : props.size === "sm" ? 24 : 32;
 
   return (
-    <div
-      className={`${avatarSize} rounded-full bg-muted flex items-center justify-center font-medium ${baseClass} ${customClass}`}
+    <AntAvatar
+      src={props.src as string | undefined}
+      size={size}
+      className={customClass}
     >
       {initials}
-    </div>
+    </AntAvatar>
   );
 }

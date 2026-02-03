@@ -1,24 +1,31 @@
 "use client";
 
+import { Image as AntImage } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Image({ element }: ComponentRenderProps) {
   const { props } = element;
   const customClass = getCustomClass(props);
-  const hasCustomSize =
-    customClass.includes("w-") || customClass.includes("h-");
-  const imgStyle = hasCustomSize
-    ? {}
-    : {
-        width: (props.width as number) || 80,
-        height: (props.height as number) || 60,
-      };
+  const width = (props.width as number) || 80;
+  const height = (props.height as number) || 60;
 
+  // Since we don't have actual images, show a placeholder
   return (
     <div
-      className={`bg-muted border border-border rounded flex items-center justify-center text-[10px] text-muted-foreground aspect-video ${baseClass} ${customClass}`}
-      style={imgStyle}
+      className={customClass}
+      style={{
+        width,
+        height,
+        backgroundColor: "#f5f5f5",
+        border: "1px solid #d9d9d9",
+        borderRadius: 4,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 10,
+        color: "rgba(0, 0, 0, 0.45)",
+      }}
     >
       {(props.alt as string) || "img"}
     </div>

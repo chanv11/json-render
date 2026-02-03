@@ -1,9 +1,10 @@
 "use client";
 
+import { Divider as AntDivider } from "antd";
 import type { ComponentRenderProps } from "./types";
-import { baseClass, getCustomClass } from "./utils";
+import { getCustomClass } from "./utils";
 
 export function Divider({ element }: ComponentRenderProps) {
   const customClass = getCustomClass(element.props);
-  return <hr className={`border-border my-2 ${baseClass} ${customClass}`} />;
+  return <AntDivider className={customClass} style={{ margin: "8px 0" }} />;
 }
