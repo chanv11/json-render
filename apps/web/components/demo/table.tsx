@@ -1,10 +1,11 @@
 "use client";
 
 import { Table as AntTable, Space, Flex } from "antd";
+import { useData } from "@json-render/react";
 import type { ColumnsType } from "antd/es/table";
 import type { ReactNode } from "react";
 import type { ComponentRenderProps } from "./types";
-import { getCustomClass } from "./utils";
+import { getCustomClass, resolveBoundValue } from "./utils";
 import { demoRegistry } from "./index";
 
 // Check if value is a component definition (has type and props)
@@ -24,11 +25,20 @@ function isComponentDef(value: unknown): value is ComponentDef {
 }
 
 // Render a nested component definition
-function renderComponent(def: ComponentDef, key?: string): ReactNode {
+function renderComponent(
+  def: ComponentDef,
+  key: string | undefined,
+  options?: {
+    onAction?: ComponentRenderProps["onAction"];
+    row?: TableData;
+  },
+): ReactNode {
   const Component = demoRegistry[def.type];
   if (!Component) {
     return null;
   }
+  const rowRuntime = options?.row ? { $row: options.row } : undefined;
+
   return (
     <Component
       key={key}
@@ -36,6 +46,13 @@ function renderComponent(def: ComponentDef, key?: string): ReactNode {
         key: key || def.type,
         type: def.type,
         props: def.props,
+      }}
+      onAction={(action, runtime) => {
+        const mergedRuntime =
+          rowRuntime && runtime
+            ? { ...rowRuntime, ...runtime }
+            : (rowRuntime ?? runtime);
+        void options?.onAction?.(action, mergedRuntime);
       }}
     />
   );
@@ -53,20 +70,35 @@ function interpolateTemplate(
 }
 
 // Process component props with template interpolation
+function processTemplateValue(
+  candidate: unknown,
+  value: unknown,
+  record: TableData,
+): unknown {
+  if (typeof candidate === "string" && candidate.includes("{{")) {
+    return interpolateTemplate(candidate, value, record);
+  }
+  if (Array.isArray(candidate)) {
+    return candidate.map((item) => processTemplateValue(item, value, record));
+  }
+  if (candidate && typeof candidate === "object") {
+    const next: Record<string, unknown> = {};
+    for (const [nestedKey, nestedValue] of Object.entries(
+      candidate as Record<string, unknown>,
+    )) {
+      next[nestedKey] = processTemplateValue(nestedValue, value, record);
+    }
+    return next;
+  }
+  return candidate;
+}
+
 function processComponentProps(
   props: Record<string, unknown>,
   value: unknown,
   record: TableData,
 ): Record<string, unknown> {
-  const processed: Record<string, unknown> = {};
-  for (const [key, val] of Object.entries(props)) {
-    if (typeof val === "string" && val.includes("{{")) {
-      processed[key] = interpolateTemplate(val, value, record);
-    } else {
-      processed[key] = val;
-    }
-  }
-  return processed;
+  return processTemplateValue(props, value, record) as Record<string, unknown>;
 }
 
 // Render type configurations
@@ -99,6 +131,7 @@ function renderByType(
   record: TableData,
   index: number,
   colKey: string,
+  onAction?: ComponentRenderProps["onAction"],
 ): ReactNode {
   const baseKey = `${record.key || index}-${colKey}`;
 
@@ -112,6 +145,7 @@ function renderByType(
       return renderComponent(
         { type: "Badge", props: { children: String(value ?? ""), ...props } },
         baseKey,
+        { onAction, row: record },
       );
     }
     case "tags": {
@@ -121,7 +155,10 @@ function renderByType(
         <Flex gap="small" wrap>
           {items.map((item, idx) => {
             if (isComponentDef(item)) {
-              return renderComponent(item, `${baseKey}-${idx}`);
+              return renderComponent(item, `${baseKey}-${idx}`, {
+                onAction,
+                row: record,
+              });
             }
             const tagProps = renderProps
               ? processComponentProps(renderProps, item, record)
@@ -132,6 +169,7 @@ function renderByType(
                 props: { children: String(item ?? ""), ...tagProps },
               },
               `${baseKey}-${idx}`,
+              { onAction, row: record },
             );
           })}
         </Flex>
@@ -144,6 +182,7 @@ function renderByType(
       return renderComponent(
         { type: "Link", props: { children: String(value ?? ""), ...props } },
         baseKey,
+        { onAction, row: record },
       );
     }
     case "avatar": {
@@ -154,32 +193,43 @@ function renderByType(
               .substring(0, 2)
               .toUpperCase(),
           };
-      return renderComponent({ type: "Avatar", props }, baseKey);
+      return renderComponent({ type: "Avatar", props }, baseKey, {
+        onAction,
+        row: record,
+      });
     }
     case "image": {
       const props = renderProps
         ? processComponentProps(renderProps, value, record)
         : { src: String(value ?? ""), alt: "" };
-      return renderComponent({ type: "Image", props }, baseKey);
+      return renderComponent({ type: "Image", props }, baseKey, {
+        onAction,
+        row: record,
+      });
     }
     default:
       return String(value ?? "");
   }
 }
 
-export function Table({ element }: ComponentRenderProps) {
+export function Table({ element, onAction }: ComponentRenderProps) {
   const { props } = element;
+  const { get } = useData();
   const customClass = getCustomClass(props);
 
   const columns = (props.columns as ColumnConfig[]) || [];
-  const dataSource =
-    (props.dataSource as TableData[]) || (props.data as TableData[]) || [];
+  const resolvedDataSource =
+    resolveBoundValue<TableData[] | TableData>(props.dataSource, get) ??
+    resolveBoundValue<TableData[] | TableData>(props.data, get);
+  const dataSource = Array.isArray(resolvedDataSource)
+    ? resolvedDataSource
+    : [];
   const rowKey = (props.rowKey as string) || "id";
   const size = (props.size as "large" | "middle" | "small") || "small";
   const bordered = props.bordered as boolean | undefined;
-  const loading = props.loading as boolean | undefined;
+  const loading = Boolean(resolveBoundValue<boolean>(props.loading, get));
   const showHeader = props.showHeader !== false;
-  const pagination = props.pagination as boolean | object | undefined;
+  const pagination = resolveBoundValue<boolean | object>(props.pagination, get);
 
   // Convert column config to antd format
   const antdColumns: ColumnsType<TableData> = columns.map((col) => {
@@ -219,6 +269,10 @@ export function Table({ element }: ComponentRenderProps) {
               return renderComponent(
                 { ...componentDef, props: processedProps },
                 `${record.key || index}-action-${idx}`,
+                {
+                  onAction,
+                  row: record,
+                },
               );
             })}
           </Space>
@@ -238,6 +292,7 @@ export function Table({ element }: ComponentRenderProps) {
             record,
             index,
             col.key,
+            onAction,
           ),
       };
     }
@@ -248,7 +303,10 @@ export function Table({ element }: ComponentRenderProps) {
       render: (value: unknown, record: TableData, index: number) => {
         // Single component definition
         if (isComponentDef(value)) {
-          return renderComponent(value, `${record.key || index}-${col.key}`);
+          return renderComponent(value, `${record.key || index}-${col.key}`, {
+            onAction,
+            row: record,
+          });
         }
         // Array of component definitions
         if (
@@ -263,6 +321,10 @@ export function Table({ element }: ComponentRenderProps) {
                   ? renderComponent(
                       item,
                       `${record.key || index}-${col.key}-${idx}`,
+                      {
+                        onAction,
+                        row: record,
+                      },
                     )
                   : String(item),
               )}

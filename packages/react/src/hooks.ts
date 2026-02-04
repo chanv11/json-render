@@ -1,19 +1,71 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { UITree, UIElement, JsonPatch } from "@json-render/core";
+import type {
+  UITree,
+  UIElement,
+  JsonPatch,
+  DataSource,
+  GeneratedActionDefinition,
+} from "@json-render/core";
 import { setByPath } from "@json-render/core";
 
 /**
- * Parse a single JSON patch line
+ * Additional runtime payload for advanced generation protocols.
  */
-function parsePatchLine(line: string): JsonPatch | null {
+export interface UIStreamRuntimePayload {
+  uiTree?: UITree;
+  dataSources?: DataSource[];
+  initialData?: Record<string, unknown>;
+  generatedActions?: Record<string, GeneratedActionDefinition>;
+}
+
+type ParsedStreamLine =
+  | { kind: "patch"; patch: JsonPatch }
+  | { kind: "runtime"; payload: UIStreamRuntimePayload }
+  | null;
+
+function isPatchMessage(value: unknown): value is JsonPatch {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "op" in value &&
+    "path" in value &&
+    typeof (value as { op: unknown }).op === "string" &&
+    typeof (value as { path: unknown }).path === "string"
+  );
+}
+
+function isRuntimeMessage(value: unknown): value is UIStreamRuntimePayload {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  return (
+    "uiTree" in value ||
+    "dataSources" in value ||
+    "initialData" in value ||
+    "generatedActions" in value
+  );
+}
+
+/**
+ * Parse a single JSON stream line.
+ * Supports JSON Patch lines and optional runtime payload lines.
+ */
+function parseStreamLine(line: string): ParsedStreamLine {
   try {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("//")) {
       return null;
     }
-    return JSON.parse(trimmed) as JsonPatch;
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (isPatchMessage(parsed)) {
+      return { kind: "patch", patch: parsed };
+    }
+    if (isRuntimeMessage(parsed)) {
+      return { kind: "runtime", payload: parsed };
+    }
+    return null;
   } catch {
     return null;
   }
@@ -85,6 +137,8 @@ export interface UseUIStreamOptions {
   api: string;
   /** Callback when complete */
   onComplete?: (tree: UITree) => void;
+  /** Callback for runtime payload lines */
+  onRuntime?: (payload: UIStreamRuntimePayload) => void;
   /** Callback on error */
   onError?: (error: Error) => void;
 }
@@ -111,6 +165,7 @@ export interface UseUIStreamReturn {
 export function useUIStream({
   api,
   onComplete,
+  onRuntime,
   onError,
 }: UseUIStreamOptions): UseUIStreamReturn {
   const [tree, setTree] = useState<UITree | null>(null);
@@ -187,9 +242,18 @@ export function useUIStream({
           buffer = lines.pop() ?? "";
 
           for (const line of lines) {
-            const patch = parsePatchLine(line);
-            if (patch) {
-              currentTree = applyPatch(currentTree, patch);
+            const message = parseStreamLine(line);
+            if (!message) {
+              continue;
+            }
+            if (message.kind === "patch") {
+              currentTree = applyPatch(currentTree, message.patch);
+              setTree({ ...currentTree });
+              continue;
+            }
+            onRuntime?.(message.payload);
+            if (message.payload.uiTree) {
+              currentTree = message.payload.uiTree;
               setTree({ ...currentTree });
             }
           }
@@ -197,10 +261,16 @@ export function useUIStream({
 
         // Process any remaining buffer
         if (buffer.trim()) {
-          const patch = parsePatchLine(buffer);
-          if (patch) {
-            currentTree = applyPatch(currentTree, patch);
+          const message = parseStreamLine(buffer);
+          if (message?.kind === "patch") {
+            currentTree = applyPatch(currentTree, message.patch);
             setTree({ ...currentTree });
+          } else if (message?.kind === "runtime") {
+            onRuntime?.(message.payload);
+            if (message.payload.uiTree) {
+              currentTree = message.payload.uiTree;
+              setTree({ ...currentTree });
+            }
           }
         }
 
@@ -216,7 +286,7 @@ export function useUIStream({
         setIsStreaming(false);
       }
     },
-    [api, onComplete, onError],
+    [api, onComplete, onRuntime, onError],
   );
 
   // Cleanup on unmount

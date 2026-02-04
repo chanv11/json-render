@@ -1,6 +1,17 @@
 import { z } from "zod";
-import type { DynamicValue, DataModel } from "./types";
-import { DynamicValueSchema, resolveDynamicValue } from "./types";
+import type { DataModel } from "./types";
+import { getByPath } from "./types";
+
+/**
+ * Runtime values available while executing actions.
+ * Keys follow the "$*" convention to support path lookups like "/$event/value".
+ */
+export interface ActionRuntimeContext {
+  $event?: Record<string, unknown>;
+  $row?: Record<string, unknown>;
+  $error?: unknown;
+  [key: `$${string}`]: unknown;
+}
 
 /**
  * Confirmation dialog configuration
@@ -14,17 +25,14 @@ export interface ActionConfirm {
 }
 
 /**
- * Action success handler
+ * Legacy callback shapes (kept for backwards compatibility)
  */
-export type ActionOnSuccess =
+export type LegacyActionOnSuccess =
   | { navigate: string }
   | { set: Record<string, unknown> }
   | { action: string };
 
-/**
- * Action error handler
- */
-export type ActionOnError =
+export type LegacyActionOnError =
   | { set: Record<string, unknown> }
   | { action: string };
 
@@ -32,10 +40,10 @@ export type ActionOnError =
  * Rich action definition
  */
 export interface Action {
-  /** Action name (must be in catalog) */
+  /** Action name (meta action or host-defined action) */
   name: string;
   /** Parameters to pass to the action handler */
-  params?: Record<string, DynamicValue>;
+  params?: Record<string, unknown>;
   /** Confirmation dialog before execution */
   confirm?: ActionConfirm;
   /** Handler after successful execution */
@@ -43,6 +51,21 @@ export interface Action {
   /** Handler after failed execution */
   onError?: ActionOnError;
 }
+
+/**
+ * AI-generated action definition, composed from meta actions.
+ */
+export interface GeneratedActionDefinition {
+  description: string;
+  composed: Action;
+  implementation?: string;
+}
+
+/**
+ * Callback types now support nested actions.
+ */
+export type ActionOnSuccess = LegacyActionOnSuccess | Action;
+export type ActionOnError = LegacyActionOnError | Action;
 
 /**
  * Schema for action confirmation
@@ -55,41 +78,87 @@ export const ActionConfirmSchema = z.object({
   variant: z.enum(["default", "danger"]).optional(),
 });
 
-/**
- * Schema for success handlers
- */
-export const ActionOnSuccessSchema = z.union([
+const LegacyActionOnSuccessSchema = z.union([
   z.object({ navigate: z.string() }),
   z.object({ set: z.record(z.string(), z.unknown()) }),
   z.object({ action: z.string() }),
 ]);
 
-/**
- * Schema for error handlers
- */
-export const ActionOnErrorSchema = z.union([
+const LegacyActionOnErrorSchema = z.union([
   z.object({ set: z.record(z.string(), z.unknown()) }),
   z.object({ action: z.string() }),
 ]);
 
 /**
- * Full action schema
+ * JSON-like schema for action params.
  */
-export const ActionSchema = z.object({
-  name: z.string(),
-  params: z.record(z.string(), DynamicValueSchema).optional(),
-  confirm: ActionConfirmSchema.optional(),
-  onSuccess: ActionOnSuccessSchema.optional(),
-  onError: ActionOnErrorSchema.optional(),
-});
+const ActionParamValueSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(ActionParamValueSchema),
+    z.record(z.string(), ActionParamValueSchema),
+  ]),
+);
+
+/**
+ * Full action schema (recursive)
+ */
+export const ActionSchema: z.ZodType<Action> = z.lazy(() =>
+  z.object({
+    name: z.string(),
+    params: z.record(z.string(), ActionParamValueSchema).optional(),
+    confirm: ActionConfirmSchema.optional(),
+    onSuccess: ActionOnSuccessSchema.optional(),
+    onError: ActionOnErrorSchema.optional(),
+  }),
+) as z.ZodType<Action>;
+
+/**
+ * Schema for callbacks (legacy callback or nested action)
+ */
+export const ActionOnSuccessSchema: z.ZodType<ActionOnSuccess> = z.lazy(() =>
+  z.union([LegacyActionOnSuccessSchema, ActionSchema]),
+) as z.ZodType<ActionOnSuccess>;
+
+export const ActionOnErrorSchema: z.ZodType<ActionOnError> = z.lazy(() =>
+  z.union([LegacyActionOnErrorSchema, ActionSchema]),
+) as z.ZodType<ActionOnError>;
+
+/**
+ * Unified callback schema export.
+ */
+export const ActionCallbackSchema = z.union([
+  ActionOnSuccessSchema,
+  ActionOnErrorSchema,
+]);
+
+/**
+ * Schema for generated action definitions.
+ */
+export const GeneratedActionDefinitionSchema: z.ZodType<GeneratedActionDefinition> =
+  z.object({
+    description: z.string(),
+    composed: ActionSchema,
+    implementation: z.string().optional(),
+  }) as z.ZodType<GeneratedActionDefinition>;
 
 /**
  * Action handler function signature
  */
+export interface ActionHandlerContext {
+  runtime?: ActionRuntimeContext;
+}
+
 export type ActionHandler<
   TParams = Record<string, unknown>,
   TResult = unknown,
-> = (params: TParams) => Promise<TResult> | TResult;
+> = (
+  params: TParams,
+  context?: ActionHandlerContext,
+) => Promise<TResult> | TResult;
 
 /**
  * Action definition in catalog
@@ -102,7 +171,7 @@ export interface ActionDefinition<TParams = Record<string, unknown>> {
 }
 
 /**
- * Resolved action with all dynamic values resolved
+ * Resolved action with all dynamic/template values resolved
  */
 export interface ResolvedAction {
   name: string;
@@ -112,28 +181,129 @@ export interface ResolvedAction {
   onError?: ActionOnError;
 }
 
+function normalizePath(path: string): string {
+  if (!path) return path;
+  if (path.startsWith("/")) return path;
+  if (path.startsWith("$")) {
+    return `/${path.replace(/\./g, "/")}`;
+  }
+  return path.includes("/") ? `/${path}` : `/${path}`;
+}
+
+function resolvePath(path: string, dataModel: DataModel): unknown {
+  return getByPath(dataModel, normalizePath(path));
+}
+
+function isPathRef(value: unknown): value is { path: string } {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const entries = Object.entries(value);
+  return (
+    entries.length === 1 &&
+    entries[0]?.[0] === "path" &&
+    typeof entries[0][1] === "string"
+  );
+}
+
+function buildRuntimeDataModel(
+  dataModel: DataModel,
+  runtime?: ActionRuntimeContext,
+): DataModel {
+  if (!runtime) return dataModel;
+  return {
+    ...dataModel,
+    ...runtime,
+  };
+}
+
+function resolveValue(value: unknown, dataModel: DataModel): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    if (value.includes("${")) {
+      return interpolateString(value, dataModel);
+    }
+    if (value === "$error.message") {
+      const message = resolvePath("$error.message", dataModel);
+      if (typeof message === "string") {
+        return message;
+      }
+    }
+    return value;
+  }
+
+  if (typeof value !== "object") {
+    return value;
+  }
+
+  if (isPathRef(value)) {
+    return resolvePath(value.path, dataModel);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveValue(item, dataModel));
+  }
+
+  const resolved: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value)) {
+    resolved[key] = resolveValue(nested, dataModel);
+  }
+  return resolved;
+}
+
+function isAction(value: unknown): value is Action {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "name" in value &&
+    typeof (value as { name: unknown }).name === "string"
+  );
+}
+
+function isNavigateCallback(
+  callback: ActionOnSuccess | ActionOnError,
+): callback is { navigate: string } {
+  return "navigate" in callback;
+}
+
+function isSetCallback(
+  callback: ActionOnSuccess | ActionOnError,
+): callback is { set: Record<string, unknown> } {
+  return "set" in callback;
+}
+
+function isActionNameCallback(
+  callback: ActionOnSuccess | ActionOnError,
+): callback is { action: string } {
+  return "action" in callback;
+}
+
 /**
- * Resolve all dynamic values in an action
+ * Resolve all dynamic values in an action.
  */
 export function resolveAction(
   action: Action,
   dataModel: DataModel,
+  runtime?: ActionRuntimeContext,
 ): ResolvedAction {
+  const runtimeDataModel = buildRuntimeDataModel(dataModel, runtime);
   const resolvedParams: Record<string, unknown> = {};
 
   if (action.params) {
     for (const [key, value] of Object.entries(action.params)) {
-      resolvedParams[key] = resolveDynamicValue(value, dataModel);
+      resolvedParams[key] = resolveValue(value, runtimeDataModel);
     }
   }
 
-  // Interpolate confirmation message if present
   let confirm = action.confirm;
   if (confirm) {
     confirm = {
       ...confirm,
-      message: interpolateString(confirm.message, dataModel),
-      title: interpolateString(confirm.title, dataModel),
+      message: interpolateString(confirm.message, runtimeDataModel),
+      title: interpolateString(confirm.title, runtimeDataModel),
     };
   }
 
@@ -147,14 +317,14 @@ export function resolveAction(
 }
 
 /**
- * Interpolate ${path} expressions in a string
+ * Interpolate ${path} expressions in a string.
  */
 export function interpolateString(
   template: string,
   dataModel: DataModel,
 ): string {
-  return template.replace(/\$\{([^}]+)\}/g, (_, path) => {
-    const value = resolveDynamicValue({ path }, dataModel);
+  return template.replace(/\$\{([^}]+)\}/g, (_, rawPath: string) => {
+    const value = resolvePath(rawPath, dataModel);
     return String(value ?? "");
   });
 }
@@ -167,64 +337,91 @@ export interface ActionExecutionContext {
   action: ResolvedAction;
   /** The action handler from the host */
   handler: ActionHandler;
+  /** Current runtime values */
+  runtime?: ActionRuntimeContext;
+  /** Function to read latest data model for callback interpolation */
+  getDataModel?: () => DataModel;
   /** Function to update data model */
   setData: (path: string, value: unknown) => void;
   /** Function to navigate */
   navigate?: (path: string) => void;
   /** Function to execute another action */
-  executeAction?: (name: string) => Promise<void>;
+  executeAction?: (
+    action: Action | string,
+    runtime?: ActionRuntimeContext,
+  ) => Promise<void>;
 }
 
-/**
- * Execute an action with all callbacks
- */
-export async function executeAction(
+async function runActionCallback(
+  callback: ActionOnSuccess | ActionOnError | undefined,
   ctx: ActionExecutionContext,
+  runtime?: ActionRuntimeContext,
 ): Promise<void> {
-  const { action, handler, setData, navigate, executeAction } = ctx;
+  if (!callback) {
+    return;
+  }
 
-  try {
-    await handler(action.params);
+  if (isAction(callback)) {
+    await ctx.executeAction?.(callback, runtime);
+    return;
+  }
 
-    // Handle success
-    if (action.onSuccess) {
-      if ("navigate" in action.onSuccess && navigate) {
-        navigate(action.onSuccess.navigate);
-      } else if ("set" in action.onSuccess) {
-        for (const [path, value] of Object.entries(action.onSuccess.set)) {
-          setData(path, value);
-        }
-      } else if ("action" in action.onSuccess && executeAction) {
-        await executeAction(action.onSuccess.action);
-      }
+  const runtimeDataModel = buildRuntimeDataModel(
+    ctx.getDataModel?.() ?? {},
+    runtime,
+  );
+
+  if (isNavigateCallback(callback) && ctx.navigate) {
+    const path = interpolateString(callback.navigate, runtimeDataModel);
+    ctx.navigate(path);
+    return;
+  }
+
+  if (isSetCallback(callback)) {
+    for (const [path, value] of Object.entries(callback.set)) {
+      const resolvedValue = resolveValue(value, runtimeDataModel);
+      ctx.setData(path, resolvedValue);
     }
-  } catch (error) {
-    // Handle error
-    if (action.onError) {
-      if ("set" in action.onError) {
-        for (const [path, value] of Object.entries(action.onError.set)) {
-          // Replace $error.message with actual error
-          const resolvedValue =
-            typeof value === "string" && value === "$error.message"
-              ? (error as Error).message
-              : value;
-          setData(path, resolvedValue);
-        }
-      } else if ("action" in action.onError && executeAction) {
-        await executeAction(action.onError.action);
-      }
-    } else {
-      throw error;
-    }
+    return;
+  }
+
+  if (isActionNameCallback(callback) && ctx.executeAction) {
+    const actionName = interpolateString(callback.action, runtimeDataModel);
+    await ctx.executeAction(actionName, runtime);
   }
 }
 
 /**
- * Helper to create actions
+ * Execute an action with all callbacks.
+ */
+export async function executeAction(
+  ctx: ActionExecutionContext,
+): Promise<void> {
+  const { action, handler, runtime } = ctx;
+
+  try {
+    await handler(action.params, { runtime });
+    await runActionCallback(action.onSuccess, ctx, runtime);
+  } catch (error) {
+    if (!action.onError) {
+      throw error;
+    }
+
+    const runtimeWithError: ActionRuntimeContext = {
+      ...(runtime ?? {}),
+      $error: error,
+    };
+
+    await runActionCallback(action.onError, ctx, runtimeWithError);
+  }
+}
+
+/**
+ * Helper to create actions.
  */
 export const action = {
   /** Create a simple action */
-  simple: (name: string, params?: Record<string, DynamicValue>): Action => ({
+  simple: (name: string, params?: Record<string, unknown>): Action => ({
     name,
     params,
   }),
@@ -233,7 +430,7 @@ export const action = {
   withConfirm: (
     name: string,
     confirm: ActionConfirm,
-    params?: Record<string, DynamicValue>,
+    params?: Record<string, unknown>,
   ): Action => ({
     name,
     params,
@@ -244,7 +441,7 @@ export const action = {
   withSuccess: (
     name: string,
     onSuccess: ActionOnSuccess,
-    params?: Record<string, DynamicValue>,
+    params?: Record<string, unknown>,
   ): Action => ({
     name,
     params,

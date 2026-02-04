@@ -1,5 +1,7 @@
-import { createCatalog } from "@json-render/core";
+import { createCatalog, ActionSchema } from "@json-render/core";
 import { z } from "zod";
+
+const PathBindingSchema = z.object({ path: z.string() });
 
 /**
  * Web playground component catalog (Ant Design 5.x compatible)
@@ -24,6 +26,31 @@ export const playgroundCatalog = createCatalog({
       hasChildren: true,
       description:
         "Ant Design Card container for content sections. Use for forms/content boxes.",
+    },
+
+    Modal: {
+      props: z.object({
+        title: z.string().optional(),
+        open: z.union([z.boolean(), PathBindingSchema]).optional(),
+        width: z
+          .union([
+            z.literal("sm"),
+            z.literal("md"),
+            z.literal("lg"),
+            z.literal("full"),
+            z.number(),
+          ])
+          .optional(),
+        centered: z.boolean().optional(),
+        destroyOnClose: z.boolean().optional(),
+        maskClosable: z.boolean().optional(),
+        onCancelAction: ActionSchema.optional(),
+        onCancelActionName: z.string().optional(),
+        className: z.array(z.string()).optional(),
+      }),
+      hasChildren: true,
+      description:
+        "Ant Design Modal dialog for add/edit flows. Use visible/path or open binding to control display.",
     },
 
     Stack: {
@@ -75,10 +102,14 @@ export const playgroundCatalog = createCatalog({
         label: z.string().optional(),
         name: z.string(),
         type: z.enum(["text", "email", "password", "number"]).optional(),
+        value: z.union([z.string(), z.number(), PathBindingSchema]).optional(),
+        valuePath: z.string().optional(),
+        defaultValue: z.union([z.string(), z.number()]).optional(),
         placeholder: z.string().optional(),
         disabled: z.boolean().optional(),
         allowClear: z.boolean().optional(),
         maxLength: z.number().optional(),
+        onChangeAction: ActionSchema.optional(),
         size: z.enum(["large", "middle", "small"]).optional(),
         className: z.array(z.string()).optional(),
       }),
@@ -89,11 +120,15 @@ export const playgroundCatalog = createCatalog({
       props: z.object({
         label: z.string().optional(),
         name: z.string(),
+        value: z.union([z.string(), PathBindingSchema]).optional(),
+        valuePath: z.string().optional(),
+        defaultValue: z.string().optional(),
         placeholder: z.string().optional(),
         rows: z.number().optional(),
         maxLength: z.number().optional(),
         showCount: z.boolean().optional(),
         disabled: z.boolean().optional(),
+        onChangeAction: ActionSchema.optional(),
         className: z.array(z.string()).optional(),
       }),
       description: "Ant Design TextArea multi-line input",
@@ -103,11 +138,16 @@ export const playgroundCatalog = createCatalog({
       props: z.object({
         label: z.string().optional(),
         name: z.string(),
+        value: z
+          .union([z.string(), z.array(z.string()), PathBindingSchema])
+          .optional(),
+        valuePath: z.string().optional(),
         options: z.array(z.string()),
         placeholder: z.string().optional(),
         disabled: z.boolean().optional(),
         allowClear: z.boolean().optional(),
         mode: z.enum(["multiple", "tags"]).optional(),
+        onChangeAction: ActionSchema.optional(),
         size: z.enum(["large", "middle", "small"]).optional(),
         className: z.array(z.string()).optional(),
       }),
@@ -118,8 +158,10 @@ export const playgroundCatalog = createCatalog({
       props: z.object({
         label: z.string(),
         name: z.string(),
-        checked: z.boolean().optional(),
+        checked: z.union([z.boolean(), PathBindingSchema]).optional(),
+        checkedPath: z.string().optional(),
         disabled: z.boolean().optional(),
+        onChangeAction: ActionSchema.optional(),
         className: z.array(z.string()).optional(),
       }),
       description: "Ant Design Checkbox input",
@@ -130,8 +172,11 @@ export const playgroundCatalog = createCatalog({
         label: z.string().optional(),
         name: z.string(),
         options: z.array(z.string()),
+        value: z.union([z.string(), PathBindingSchema]).optional(),
+        valuePath: z.string().optional(),
         direction: z.enum(["horizontal", "vertical"]).optional(),
         disabled: z.boolean().optional(),
+        onChangeAction: ActionSchema.optional(),
         className: z.array(z.string()).optional(),
       }),
       description: "Ant Design Radio button group",
@@ -141,8 +186,10 @@ export const playgroundCatalog = createCatalog({
       props: z.object({
         label: z.string(),
         name: z.string(),
-        checked: z.boolean().optional(),
+        checked: z.union([z.boolean(), PathBindingSchema]).optional(),
+        checkedPath: z.string().optional(),
         disabled: z.boolean().optional(),
+        onChangeAction: ActionSchema.optional(),
         size: z.enum(["default", "small"]).optional(),
         className: z.array(z.string()).optional(),
       }),
@@ -153,6 +200,7 @@ export const playgroundCatalog = createCatalog({
     Button: {
       props: z.object({
         label: z.string(),
+        variant: z.enum(["primary", "default", "danger"]).optional(),
         type: z
           .enum(["primary", "default", "dashed", "text", "link"])
           .optional(),
@@ -163,6 +211,8 @@ export const playgroundCatalog = createCatalog({
         block: z.boolean().optional(),
         icon: z.string().optional(),
         actionText: z.string().optional(),
+        action: ActionSchema.optional(),
+        actionName: z.string().optional(),
         className: z.array(z.string()).optional(),
       }),
       description:
@@ -174,6 +224,7 @@ export const playgroundCatalog = createCatalog({
         label: z.string(),
         href: z.string(),
         target: z.enum(["_blank", "_self"]).optional(),
+        action: ActionSchema.optional(),
         className: z.array(z.string()).optional(),
       }),
       description: "Ant Design Typography Link",
@@ -269,9 +320,12 @@ export const playgroundCatalog = createCatalog({
           .enum(["success", "info", "warning", "error", "loading"])
           .optional(),
         duration: z.number().optional(),
+        action: ActionSchema.optional(),
+        actionName: z.string().optional(),
+        actionText: z.string().optional(),
       }),
       description:
-        "Ant Design Message toast notification. Triggers a toast on mount, renders nothing visible.",
+        "Ant Design Message toast notification. Triggers a toast on mount, can optionally trigger an action on mount, renders nothing visible.",
     },
 
     Progress: {
@@ -356,15 +410,27 @@ export const playgroundCatalog = createCatalog({
             renderProps: z.record(z.string(), z.unknown()).optional(), // Props for renderType, supports {{value}} and {{record.field}} templates
           }),
         ),
-        dataSource: z.array(z.record(z.string(), z.unknown())).optional(),
+        dataSource: z
+          .union([
+            z.array(z.record(z.string(), z.unknown())),
+            PathBindingSchema,
+          ])
+          .optional(),
+        data: z
+          .union([
+            z.array(z.record(z.string(), z.unknown())),
+            PathBindingSchema,
+          ])
+          .optional(),
         rowKey: z.string().optional(),
         size: z.enum(["large", "middle", "small"]).optional(),
         bordered: z.boolean().optional(),
-        loading: z.boolean().optional(),
+        loading: z.union([z.boolean(), PathBindingSchema]).optional(),
         showHeader: z.boolean().optional(),
         pagination: z
           .union([
             z.boolean(),
+            PathBindingSchema,
             z.object({
               pageSize: z.number().optional(),
               current: z.number().optional(),

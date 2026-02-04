@@ -43,17 +43,22 @@ export type {
   ActionConfirm,
   ActionOnSuccess,
   ActionOnError,
+  ActionRuntimeContext,
   ActionHandler,
+  ActionHandlerContext,
   ActionDefinition,
+  GeneratedActionDefinition,
   ResolvedAction,
   ActionExecutionContext,
 } from "./actions";
 
 export {
   ActionSchema,
+  ActionCallbackSchema,
   ActionConfirmSchema,
   ActionOnSuccessSchema,
   ActionOnErrorSchema,
+  GeneratedActionDefinitionSchema,
   resolveAction,
   executeAction,
   interpolateString,
@@ -94,3 +99,15 @@ export {
   generateCatalogPrompt,
   generateSystemPrompt,
 } from "./catalog";
+
+// Data source
+export type {
+  HttpMethod,
+  ApiEndpoint,
+  PaginationConfig,
+  SortConfig,
+  FilterConfig,
+  DataSource,
+} from "./data-source";
+
+export { HttpMethodSchema, DataSourceSchema } from "./data-source";

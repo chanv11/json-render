@@ -42,19 +42,19 @@ export function Header() {
           </span>
           <Link href="/">
             <span className="font-medium tracking-tight text-lg">
-              json-render
+              otakus-render
             </span>
           </Link>
         </div>
         <nav className="flex items-center gap-4">
-          <Link
+          {/* <Link
             href="/playground"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <span className="sm:hidden">Play</span>
             <span className="hidden sm:inline">Playground</span>
-          </Link>
-          <Link
+          </Link> */}
+          {/* <Link
             href="/docs"
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
@@ -67,7 +67,7 @@ export function Header() {
             className="text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             GitHub
-          </a>
+          </a> */}
           <ThemeToggle />
         </nav>
       </div>

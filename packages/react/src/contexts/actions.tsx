@@ -3,6 +3,7 @@
 import React, {
   createContext,
   useContext,
+  useRef,
   useState,
   useCallback,
   useMemo,
@@ -10,13 +11,17 @@ import React, {
 } from "react";
 import {
   resolveAction,
-  executeAction,
+  executeAction as executeResolvedAction,
   type Action,
+  type ActionRuntimeContext,
   type ActionHandler,
   type ActionConfirm,
+  type GeneratedActionDefinition,
   type ResolvedAction,
 } from "@json-render/core";
 import { useData } from "./data";
+import { createMetaActionHandlers } from "./meta-actions";
+import { useOptionalDataSource } from "./data-source";
 
 /**
  * Pending confirmation state
@@ -26,6 +31,8 @@ export interface PendingConfirmation {
   action: ResolvedAction;
   /** The action handler */
   handler: ActionHandler;
+  /** Runtime context when the action was triggered */
+  runtime?: ActionRuntimeContext;
   /** Resolve callback */
   resolve: () => void;
   /** Reject callback */
@@ -43,7 +50,7 @@ export interface ActionContextValue {
   /** Pending confirmation dialog */
   pendingConfirmation: PendingConfirmation | null;
   /** Execute an action */
-  execute: (action: Action) => Promise<void>;
+  execute: (action: Action, runtime?: ActionRuntimeContext) => Promise<void>;
   /** Confirm the pending action */
   confirm: () => void;
   /** Cancel the pending action */
@@ -62,6 +69,12 @@ export interface ActionProviderProps {
   handlers?: Record<string, ActionHandler>;
   /** Navigation function */
   navigate?: (path: string) => void;
+  /** Whether built-in meta actions are enabled */
+  enableMetaActions?: boolean;
+  /** Optional toast bridge for showToast meta action */
+  onToast?: (payload: { message: string; type: string }) => void;
+  /** AI generated composed actions, indexed by action name */
+  generatedActions?: Record<string, GeneratedActionDefinition>;
   children: ReactNode;
 }
 
@@ -71,14 +84,19 @@ export interface ActionProviderProps {
 export function ActionProvider({
   handlers: initialHandlers = {},
   navigate,
+  enableMetaActions = true,
+  onToast,
+  generatedActions = {},
   children,
 }: ActionProviderProps) {
-  const { data, set } = useData();
+  const { data, set, update } = useData();
+  const dataSource = useOptionalDataSource();
   const [handlers, setHandlers] =
     useState<Record<string, ActionHandler>>(initialHandlers);
   const [loadingActions, setLoadingActions] = useState<Set<string>>(new Set());
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
+  const executeRef = useRef<ActionContextValue["execute"] | null>(null);
 
   const registerHandler = useCallback(
     (name: string, handler: ActionHandler) => {
@@ -87,10 +105,89 @@ export function ActionProvider({
     [],
   );
 
+  const metaHandlers = useMemo<Record<string, ActionHandler>>(() => {
+    if (!enableMetaActions) {
+      return {};
+    }
+    return createMetaActionHandlers({
+      getDataModel: () => data,
+      set,
+      update,
+      execute: async (action, runtime) => {
+        await executeRef.current?.(action, runtime);
+      },
+      dataSource,
+      onToast,
+    });
+  }, [enableMetaActions, data, set, update, dataSource, onToast]);
+
+  const generatedActionHandlers = useMemo<Record<string, ActionHandler>>(
+    () =>
+      Object.fromEntries(
+        Object.entries(generatedActions).map(([name, definition]) => [
+          name,
+          async (_params: Record<string, unknown>, handlerContext) => {
+            await executeRef.current?.(
+              definition.composed,
+              handlerContext?.runtime,
+            );
+          },
+        ]),
+      ),
+    [generatedActions],
+  );
+
+  const allHandlers = useMemo(
+    () => ({
+      ...metaHandlers,
+      ...generatedActionHandlers,
+      ...handlers,
+    }),
+    [metaHandlers, generatedActionHandlers, handlers],
+  );
+
+  const runResolvedAction = useCallback(
+    async (resolved: ResolvedAction, runtime?: ActionRuntimeContext) => {
+      const handler = allHandlers[resolved.name];
+
+      if (!handler) {
+        console.warn(`No handler registered for action: ${resolved.name}`);
+        return;
+      }
+
+      setLoadingActions((prev) => new Set(prev).add(resolved.name));
+      try {
+        await executeResolvedAction({
+          action: resolved,
+          handler,
+          runtime,
+          getDataModel: () => data,
+          setData: set,
+          navigate,
+          executeAction: async (nextAction, nextRuntime) => {
+            if (typeof nextAction === "string") {
+              const subAction: Action = { name: nextAction };
+              await executeRef.current?.(subAction, nextRuntime ?? runtime);
+              return;
+            }
+            await executeRef.current?.(nextAction, nextRuntime ?? runtime);
+          },
+        });
+      } finally {
+        setLoadingActions((prev) => {
+          const next = new Set(prev);
+          next.delete(resolved.name);
+          return next;
+        });
+      }
+    },
+    [allHandlers, data, set, navigate],
+  );
+
   const execute = useCallback(
-    async (action: Action) => {
-      const resolved = resolveAction(action, data);
-      const handler = handlers[resolved.name];
+    async (action: Action, runtime?: ActionRuntimeContext) => {
+      const resolved = resolveAction(action, data, runtime);
+      const handler = allHandlers[resolved.name];
 
       if (!handler) {
         console.warn(`No handler registered for action: ${resolved.name}`);
@@ -103,6 +200,7 @@ export function ActionProvider({
           setPendingConfirmation({
             action: resolved,
             handler,
+            runtime,
             resolve: () => {
               setPendingConfirmation(null);
               resolve();
@@ -113,51 +211,16 @@ export function ActionProvider({
             },
           });
         }).then(async () => {
-          setLoadingActions((prev) => new Set(prev).add(resolved.name));
-          try {
-            await executeAction({
-              action: resolved,
-              handler,
-              setData: set,
-              navigate,
-              executeAction: async (name) => {
-                const subAction: Action = { name };
-                await execute(subAction);
-              },
-            });
-          } finally {
-            setLoadingActions((prev) => {
-              const next = new Set(prev);
-              next.delete(resolved.name);
-              return next;
-            });
-          }
+          await runResolvedAction(resolved, runtime);
         });
       }
 
-      // Execute immediately
-      setLoadingActions((prev) => new Set(prev).add(resolved.name));
-      try {
-        await executeAction({
-          action: resolved,
-          handler,
-          setData: set,
-          navigate,
-          executeAction: async (name) => {
-            const subAction: Action = { name };
-            await execute(subAction);
-          },
-        });
-      } finally {
-        setLoadingActions((prev) => {
-          const next = new Set(prev);
-          next.delete(resolved.name);
-          return next;
-        });
-      }
+      await runResolvedAction(resolved, runtime);
     },
-    [data, handlers, set, navigate],
+    [data, allHandlers, runResolvedAction],
   );
+
+  executeRef.current = execute;
 
   const confirm = useCallback(() => {
     pendingConfirmation?.resolve();
@@ -169,7 +232,7 @@ export function ActionProvider({
 
   const value = useMemo<ActionContextValue>(
     () => ({
-      handlers,
+      handlers: allHandlers,
       loadingActions,
       pendingConfirmation,
       execute,
@@ -178,7 +241,7 @@ export function ActionProvider({
       registerHandler,
     }),
     [
-      handlers,
+      allHandlers,
       loadingActions,
       pendingConfirmation,
       execute,

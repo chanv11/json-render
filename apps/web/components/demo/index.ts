@@ -21,6 +21,7 @@ export { Input } from "./input";
 export { LineGraph } from "./line-graph";
 export { Link } from "./link";
 export { Message } from "./message";
+export { Modal } from "./modal";
 export { Progress } from "./progress";
 export { Radio } from "./radio";
 export { Rating } from "./rating";
@@ -49,6 +50,7 @@ import { Input } from "./input";
 import { LineGraph } from "./line-graph";
 import { Link } from "./link";
 import { Message } from "./message";
+import { Modal } from "./modal";
 import { Progress } from "./progress";
 import { Radio } from "./radio";
 import { Rating } from "./rating";
@@ -76,6 +78,7 @@ export const demoRegistry: ComponentRegistry = {
   LineGraph,
   Link,
   Message,
+  Modal,
   Progress,
   Radio,
   Rating,

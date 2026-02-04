@@ -5,9 +5,13 @@ import {
   Renderer,
   useUIStream,
   JSONUIProvider,
-  VisibilityProvider,
+  type UIStreamRuntimePayload,
 } from "@json-render/react";
-import type { UITree } from "@json-render/core";
+import type {
+  UITree,
+  DataSource,
+  GeneratedActionDefinition,
+} from "@json-render/core";
 import { collectUsedComponents, serializeProps } from "@json-render/codegen";
 import { toast } from "sonner";
 import {
@@ -32,8 +36,38 @@ type MobilePane = "chat" | "code" | "preview";
 interface Version {
   id: string;
   prompt: string;
-  tree: UITree | null;
+  runtime: PlaygroundRuntimeState;
   status: "generating" | "complete" | "error";
+}
+
+interface PlaygroundRuntimeState {
+  uiTree: UITree | null;
+  dataSources: DataSource[];
+  initialData: Record<string, unknown>;
+  generatedActions: Record<string, GeneratedActionDefinition>;
+}
+
+type DataSourceMode = "live" | "mock";
+
+function createEmptyRuntimeState(): PlaygroundRuntimeState {
+  return {
+    uiTree: null,
+    dataSources: [],
+    initialData: {},
+    generatedActions: {},
+  };
+}
+
+function mergeRuntimePayload(
+  runtime: PlaygroundRuntimeState,
+  payload: UIStreamRuntimePayload,
+): PlaygroundRuntimeState {
+  return {
+    uiTree: payload.uiTree ?? runtime.uiTree,
+    dataSources: payload.dataSources ?? runtime.dataSources,
+    initialData: payload.initialData ?? runtime.initialData,
+    generatedActions: payload.generatedActions ?? runtime.generatedActions,
+  };
 }
 
 const EXAMPLE_PROMPTS = [
@@ -53,6 +87,7 @@ export function Playground() {
   const [activeTab, setActiveTab] = useState<Tab>("json");
   const [renderView, setRenderView] = useState<RenderView>("preview");
   const [mobilePane, setMobilePane] = useState<MobilePane>("chat");
+  const [dataSourceMode, setDataSourceMode] = useState<DataSourceMode>("mock");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const versionsEndRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +104,23 @@ export function Playground() {
     clear,
   } = useUIStream({
     api: "/api/generate",
+    onRuntime: (payload: UIStreamRuntimePayload) => {
+      const generatingVersionId = generatingVersionIdRef.current;
+      if (!generatingVersionId) {
+        return;
+      }
+
+      setVersions((prev) =>
+        prev.map((version) =>
+          version.id === generatingVersionId
+            ? {
+                ...version,
+                runtime: mergeRuntimePayload(version.runtime, payload),
+              }
+            : version,
+        ),
+      );
+    },
     onError: (err: Error) => {
       console.error("Generation error:", err);
       toast.error(err.message || "Generation failed. Please try again.");
@@ -90,19 +142,35 @@ export function Playground() {
   // Get the selected version
   const selectedVersion = versions.find((v) => v.id === selectedVersionId);
 
-  // Determine which tree to display:
-  // - If streaming and selected version is the generating one, show apiTree
-  // - Otherwise show the selected version's tree
+  // Determine which runtime state to display:
+  // - If streaming and selected version is the generating one, uiTree follows apiTree
+  // - Otherwise use the selected version's runtime snapshot
   const isSelectedVersionGenerating =
     selectedVersionId === generatingVersionIdRef.current && isStreaming;
   const hasValidApiTree =
     apiTree && apiTree.root && Object.keys(apiTree.elements).length > 0;
+  const currentRuntime = useMemo<PlaygroundRuntimeState>(() => {
+    const selectedRuntime =
+      selectedVersion?.runtime ?? createEmptyRuntimeState();
 
-  const currentTree =
-    isSelectedVersionGenerating && hasValidApiTree
-      ? apiTree
-      : (selectedVersion?.tree ??
-        (isSelectedVersionGenerating ? apiTree : null));
+    if (isSelectedVersionGenerating && hasValidApiTree) {
+      return {
+        ...selectedRuntime,
+        uiTree: apiTree,
+      };
+    }
+
+    if (isSelectedVersionGenerating && !selectedRuntime.uiTree && apiTree) {
+      return {
+        ...selectedRuntime,
+        uiTree: apiTree,
+      };
+    }
+
+    return selectedRuntime;
+  }, [apiTree, hasValidApiTree, isSelectedVersionGenerating, selectedVersion]);
+
+  const currentTree = currentRuntime.uiTree;
 
   // Keep the ref updated with the current tree for use in handleSubmit
   if (
@@ -148,7 +216,14 @@ export function Playground() {
       setVersions((prev) =>
         prev.map((v) =>
           v.id === completedVersionId
-            ? { ...v, tree: apiTree, status: "complete" as const }
+            ? {
+                ...v,
+                runtime: {
+                  ...v.runtime,
+                  uiTree: apiTree,
+                },
+                status: "complete" as const,
+              }
             : v,
         ),
       );
@@ -163,7 +238,7 @@ export function Playground() {
     const newVersion: Version = {
       id: newVersionId,
       prompt: inputValue.trim(),
-      tree: null,
+      runtime: createEmptyRuntimeState(),
       status: "generating",
     };
 
@@ -199,8 +274,23 @@ export function Playground() {
     };
   }, []);
 
-  const jsonCode = currentTree
-    ? JSON.stringify(currentTree, null, 2)
+  const hasRuntimeSnapshot =
+    Boolean(currentRuntime.uiTree) ||
+    currentRuntime.dataSources.length > 0 ||
+    Object.keys(currentRuntime.initialData).length > 0 ||
+    Object.keys(currentRuntime.generatedActions).length > 0;
+
+  const jsonCode = hasRuntimeSnapshot
+    ? JSON.stringify(
+        {
+          uiTree: currentRuntime.uiTree,
+          dataSources: currentRuntime.dataSources,
+          initialData: currentRuntime.initialData,
+          generatedActions: currentRuntime.generatedActions,
+        },
+        null,
+        2,
+      )
     : "// waiting...";
 
   const generatedCode = useMemo(() => {
@@ -361,6 +451,7 @@ ${jsx}
                 setVersions([]);
                 setSelectedVersionId(null);
                 setStreamLines([]);
+                currentTreeRef.current = null;
                 clear();
               }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -480,6 +571,23 @@ ${jsx}
           </button>
         ))}
         <div className="flex-1" />
+        {renderView === "preview" && currentRuntime.dataSources.length > 0 && (
+          <div className="inline-flex rounded border border-border overflow-hidden">
+            {(["mock", "live"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setDataSourceMode(mode)}
+                className={`px-2 py-1 text-[11px] font-mono transition-colors ${
+                  dataSourceMode === mode
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        )}
         {renderView === "code" && (
           <CopyButton text={generatedCode} className="text-muted-foreground" />
         )}
@@ -494,21 +602,38 @@ ${jsx}
                     typeof JSONUIProvider
                   >[0]["registry"]
                 }
+                initialData={currentRuntime.initialData}
+                dataSources={currentRuntime.dataSources}
+                dataSourceMode={dataSourceMode}
+                generatedActions={currentRuntime.generatedActions}
+                onToast={({ message, type }) => {
+                  if (type === "success") {
+                    toast.success(message);
+                    return;
+                  }
+                  if (type === "error") {
+                    toast.error(message);
+                    return;
+                  }
+                  if (type === "warning") {
+                    toast.warning(message);
+                    return;
+                  }
+                  toast(message);
+                }}
               >
-                <VisibilityProvider>
-                  <Renderer
-                    tree={currentTree!}
-                    registry={
-                      demoRegistry as Parameters<typeof Renderer>[0]["registry"]
-                    }
-                    loading={isStreaming}
-                    fallback={
-                      fallbackComponent as Parameters<
-                        typeof Renderer
-                      >[0]["fallback"]
-                    }
-                  />
-                </VisibilityProvider>
+                <Renderer
+                  tree={currentTree!}
+                  registry={
+                    demoRegistry as Parameters<typeof Renderer>[0]["registry"]
+                  }
+                  loading={isStreaming}
+                  fallback={
+                    fallbackComponent as Parameters<
+                      typeof Renderer
+                    >[0]["fallback"]
+                  }
+                />
               </JSONUIProvider>
             </div>
           ) : (

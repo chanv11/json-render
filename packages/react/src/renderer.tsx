@@ -1,16 +1,19 @@
 "use client";
 
-import React, { type ComponentType, type ReactNode, useMemo } from "react";
+import React, { type ComponentType, type ReactNode } from "react";
 import type {
   UIElement,
   UITree,
   Action,
+  ActionRuntimeContext,
+  ActionHandler,
   Catalog,
   ComponentDefinition,
+  DataSource,
+  GeneratedActionDefinition,
 } from "@json-render/core";
 import { useIsVisible } from "./contexts/visibility";
 import { useActions } from "./contexts/actions";
-import { useData } from "./contexts/data";
 
 /**
  * Props passed to component renderers
@@ -21,7 +24,7 @@ export interface ComponentRenderProps<P = Record<string, unknown>> {
   /** Rendered children */
   children?: ReactNode;
   /** Execute an action */
-  onAction?: (action: Action) => void;
+  onAction?: (action: Action, runtime?: ActionRuntimeContext) => void;
   /** Whether the parent is loading */
   loading?: boolean;
 }
@@ -141,13 +144,18 @@ export interface JSONUIProviderProps {
   registry: ComponentRegistry;
   /** Initial data model */
   initialData?: Record<string, unknown>;
+  /** Data source definitions for CRUD + fetch runtime */
+  dataSources?: DataSource[];
+  /** Data source runtime mode */
+  dataSourceMode?: "live" | "mock";
+  /** Generated action definitions */
+  generatedActions?: Record<string, GeneratedActionDefinition>;
   /** Auth state */
   authState?: { isSignedIn: boolean; user?: Record<string, unknown> };
   /** Action handlers */
-  actionHandlers?: Record<
-    string,
-    (params: Record<string, unknown>) => Promise<unknown> | unknown
-  >;
+  actionHandlers?: Record<string, ActionHandler>;
+  /** Callback for showToast meta action */
+  onToast?: (payload: { message: string; type: string }) => void;
   /** Navigation function */
   navigate?: (path: string) => void;
   /** Custom validation functions */
@@ -166,6 +174,8 @@ import { VisibilityProvider } from "./contexts/visibility";
 import { ActionProvider } from "./contexts/actions";
 import { ValidationProvider } from "./contexts/validation";
 import { ConfirmDialog } from "./contexts/actions";
+import { DataSourceProvider } from "./contexts/data-source";
+import { MockDataSourceProvider } from "./contexts/mock-data-source";
 
 /**
  * Combined provider for all JSONUI contexts
@@ -173,27 +183,53 @@ import { ConfirmDialog } from "./contexts/actions";
 export function JSONUIProvider({
   registry,
   initialData,
+  dataSources,
+  dataSourceMode = "live",
+  generatedActions,
   authState,
   actionHandlers,
+  onToast,
   navigate,
   validationFunctions,
   onDataChange,
   children,
 }: JSONUIProviderProps) {
+  const actionAndValidationLayer = (
+    <ActionProvider
+      handlers={actionHandlers}
+      navigate={navigate}
+      onToast={onToast}
+      generatedActions={generatedActions}
+    >
+      <ValidationProvider customFunctions={validationFunctions}>
+        {children}
+        <ConfirmationDialogManager />
+      </ValidationProvider>
+    </ActionProvider>
+  );
+
+  const runtimeLayer =
+    dataSources && dataSources.length > 0 ? (
+      dataSourceMode === "mock" ? (
+        <MockDataSourceProvider sources={dataSources}>
+          {actionAndValidationLayer}
+        </MockDataSourceProvider>
+      ) : (
+        <DataSourceProvider sources={dataSources}>
+          {actionAndValidationLayer}
+        </DataSourceProvider>
+      )
+    ) : (
+      actionAndValidationLayer
+    );
+
   return (
     <DataProvider
       initialData={initialData}
       authState={authState}
       onDataChange={onDataChange}
     >
-      <VisibilityProvider>
-        <ActionProvider handlers={actionHandlers} navigate={navigate}>
-          <ValidationProvider customFunctions={validationFunctions}>
-            {children}
-            <ConfirmationDialogManager />
-          </ValidationProvider>
-        </ActionProvider>
-      </VisibilityProvider>
+      <VisibilityProvider>{runtimeLayer}</VisibilityProvider>
     </DataProvider>
   );
 }

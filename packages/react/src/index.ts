@@ -9,6 +9,19 @@ export {
 } from "./contexts/data";
 
 export {
+  DataSourceProvider,
+  useDataSource,
+  useOptionalDataSource,
+  type DataSourceContextValue,
+  type DataSourceProviderProps,
+} from "./contexts/data-source";
+
+export {
+  MockDataSourceProvider,
+  type MockDataSourceProviderProps,
+} from "./contexts/mock-data-source";
+
+export {
   VisibilityProvider,
   useVisibility,
   useIsVisible,
@@ -52,6 +65,7 @@ export {
 export {
   useUIStream,
   flatToTree,
+  type UIStreamRuntimePayload,
   type UseUIStreamOptions,
   type UseUIStreamReturn,
 } from "./hooks";

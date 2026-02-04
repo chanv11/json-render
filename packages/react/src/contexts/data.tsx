@@ -4,6 +4,7 @@ import React, {
   createContext,
   useContext,
   useState,
+  useRef,
   useCallback,
   useMemo,
   type ReactNode,
@@ -56,14 +57,19 @@ export function DataProvider({
   children,
 }: DataProviderProps) {
   const [data, setData] = useState<DataModel>(initialData);
+  const dataRef = useRef<DataModel>(initialData);
 
-  const get = useCallback((path: string) => getByPath(data, path), [data]);
+  const get = useCallback(
+    (path: string) => getByPath(dataRef.current, path),
+    [],
+  );
 
   const set = useCallback(
     (path: string, value: unknown) => {
       setData((prev) => {
         const next = { ...prev };
         setByPath(next, path, value);
+        dataRef.current = next;
         return next;
       });
       onDataChange?.(path, value);
@@ -79,6 +85,7 @@ export function DataProvider({
           setByPath(next, path, value);
           onDataChange?.(path, value);
         }
+        dataRef.current = next;
         return next;
       });
     },

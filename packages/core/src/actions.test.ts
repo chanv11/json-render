@@ -32,6 +32,15 @@ describe("interpolateString", () => {
       "Bob says Bob",
     );
   });
+
+  it("supports runtime dot paths like $error.message", () => {
+    const data = {
+      $error: { message: "Failed to save" },
+    };
+    expect(interpolateString("Error: ${$error.message}", data)).toBe(
+      "Error: Failed to save",
+    );
+  });
 });
 
 describe("resolveAction", () => {
@@ -98,6 +107,30 @@ describe("resolveAction", () => {
     expect(resolved.onSuccess).toEqual({ navigate: "/success" });
     expect(resolved.onError).toEqual({ set: { error: "$error.message" } });
   });
+
+  it("resolves nested params and runtime values", () => {
+    const resolved = resolveAction(
+      {
+        name: "create",
+        params: {
+          payload: {
+            id: { path: "/$row/id" },
+            name: "${/$event/name}",
+          },
+        },
+      },
+      {},
+      {
+        $row: { id: "u-1" },
+        $event: { name: "Alice" },
+      },
+    );
+
+    expect(resolved.params.payload).toEqual({
+      id: "u-1",
+      name: "Alice",
+    });
+  });
 });
 
 describe("executeAction", () => {
@@ -110,7 +143,7 @@ describe("executeAction", () => {
       setData: vi.fn(),
     });
 
-    expect(handler).toHaveBeenCalledWith({ value: 42 });
+    expect(handler).toHaveBeenCalledWith({ value: 42 }, { runtime: undefined });
   });
 
   it("handles onSuccess with navigate", async () => {
@@ -161,7 +194,7 @@ describe("executeAction", () => {
       executeAction: executeActionFn,
     });
 
-    expect(executeActionFn).toHaveBeenCalledWith("followUp");
+    expect(executeActionFn).toHaveBeenCalledWith("followUp", undefined);
   });
 
   it("handles onError with set", async () => {
@@ -196,7 +229,57 @@ describe("executeAction", () => {
       executeAction: executeActionFn,
     });
 
-    expect(executeActionFn).toHaveBeenCalledWith("handleError");
+    expect(executeActionFn).toHaveBeenCalledWith("handleError", {
+      $error: error,
+    });
+  });
+
+  it("handles nested action callbacks", async () => {
+    const executeActionFn = vi.fn();
+
+    await executeAction({
+      action: {
+        name: "test",
+        params: {},
+        onSuccess: {
+          name: "showToast",
+          params: { message: "Done" },
+        },
+      },
+      handler: vi.fn().mockResolvedValue(undefined),
+      setData: vi.fn(),
+      executeAction: executeActionFn,
+    });
+
+    expect(executeActionFn).toHaveBeenCalledWith(
+      {
+        name: "showToast",
+        params: { message: "Done" },
+      },
+      undefined,
+    );
+  });
+
+  it("interpolates onError set payload using runtime error context", async () => {
+    const setData = vi.fn();
+    const error = new Error("Network Error");
+
+    await executeAction({
+      action: {
+        name: "test",
+        params: {},
+        onError: {
+          set: {
+            message: "Failed: ${$error.message}",
+          },
+        },
+      },
+      handler: vi.fn().mockRejectedValue(error),
+      setData,
+      getDataModel: () => ({}),
+    });
+
+    expect(setData).toHaveBeenCalledWith("message", "Failed: Network Error");
   });
 
   it("re-throws error when no onError handler", async () => {

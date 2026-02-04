@@ -1,10 +1,14 @@
 import type { ReactNode } from "react";
-import type { UIElement, Action } from "@json-render/core";
+import type {
+  UIElement,
+  Action,
+  ActionRuntimeContext,
+} from "@json-render/core";
 
 export interface ComponentRenderProps {
   element: UIElement;
   children?: ReactNode;
-  onAction?: (action: Action) => void;
+  onAction?: (action: Action, runtime?: ActionRuntimeContext) => void;
   loading?: boolean;
 }
 
